@@ -1,5 +1,6 @@
-streamlit 
-opencv-python-headless 
-numpy 
-streamlit==1.32.2 streamlit-drawable-canvas==0.9.3 
+streamlit==1.36.0
+streamlit-drawable-canvas==0.9.3
+opencv-python-headless==4.10.0.84
+numpy
 pillow
+pandas
