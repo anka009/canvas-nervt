@@ -1,19 +1,33 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import cv2
 from PIL import Image
+import io
 from streamlit_drawable_canvas import st_canvas
 
-st.set_page_config(page_title="Objekte markieren & zählen", layout="wide")
+st.set_page_config(page_title="TIFF Objekte markieren & zählen", layout="wide")
 
 st.title("🎨 TIFF-Bild markieren & Objekte zählen")
 
-# --- Datei-Upload ---
+# --- TIFF Upload ---
 uploaded_file = st.file_uploader("TIFF-Bild hochladen", type=["tif", "tiff"])
+
 if uploaded_file:
-    # TIFF lesen und konvertieren
-    image = Image.open(uploaded_file).convert("RGB")
+    # --- TIFF sicher lesen & konvertieren ---
+    try:
+        image = Image.open(uploaded_file)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+    except Exception as e:
+        st.error(f"Fehler beim Lesen des Bildes: {e}")
+        st.stop()
+
+    # --- TIFF als PNG in Speicher konvertieren (Canvas-kompatibel) ---
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    buf.seek(0)
+    image_for_canvas = Image.open(buf)
+
     img_array = np.array(image)
 
     st.subheader("Zeichne Objekte direkt auf das Bild")
@@ -24,12 +38,12 @@ if uploaded_file:
         index=0,
     )
 
-    # --- Canvas anzeigen ---
+    # --- Canvas ---
     canvas_result = st_canvas(
         fill_color="rgba(255, 0, 0, 0.3)",
         stroke_width=3,
         stroke_color="#FF0000",
-        background_image=Image.fromarray(img_array),
+        background_image=image_for_canvas,
         update_streamlit=True,
         height=img_array.shape[0],
         width=img_array.shape[1],
@@ -37,7 +51,7 @@ if uploaded_file:
         key="canvas",
     )
 
-    # --- Daten aus Canvas auslesen ---
+    # --- Ergebnisse ---
     if canvas_result.json_data is not None:
         objects = canvas_result.json_data.get("objects", [])
         n_objects = len(objects)
@@ -47,7 +61,7 @@ if uploaded_file:
         if n_objects > 0:
             data = []
             for i, obj in enumerate(objects):
-                shape_type = obj["type"]
+                shape_type = obj.get("type", "")
                 left = obj.get("left", 0)
                 top = obj.get("top", 0)
                 width = obj.get("width", 0)
@@ -66,7 +80,7 @@ if uploaded_file:
             df = pd.DataFrame(data)
             st.dataframe(df, use_container_width=True)
 
-            # --- Download als CSV ---
+            # --- CSV-Export ---
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "📥 CSV herunterladen",
@@ -74,5 +88,7 @@ if uploaded_file:
                 file_name="objekte.csv",
                 mime="text/csv",
             )
+
 else:
     st.info("⬆️ Bitte lade ein TIFF-Bild hoch, um zu beginnen.")
+
