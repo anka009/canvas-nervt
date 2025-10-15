@@ -1,94 +1,65 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 from PIL import Image
+from streamlit_image_coordinates import streamlit_image_coordinates
 import io
-from streamlit_drawable_canvas import st_canvas
+import tifffile
 
-st.set_page_config(page_title="TIFF Objekte markieren & zählen", layout="wide")
+st.set_page_config(page_title="TIFF Punktzählung", layout="wide")
 
-st.title("🎨 TIFF-Bild markieren & Objekte zählen")
+st.title("🖱️ Punkte auf TIFF-Bild markieren & zählen")
 
-# --- TIFF Upload ---
+# --- Hochladen ---
 uploaded_file = st.file_uploader("TIFF-Bild hochladen", type=["tif", "tiff"])
-
 if uploaded_file:
-    # --- TIFF sicher lesen & konvertieren ---
+    # TIFF robust laden
     try:
-        image = Image.open(uploaded_file)
-        if image.mode != "RGB":
-            image = image.convert("RGB")
+        arr = tifffile.imread(uploaded_file)
+        if arr.ndim == 3 and arr.shape[0] < 10:
+            arr = arr[0]
+        if arr.dtype != np.uint8:
+            arr = (arr / arr.max() * 255).astype(np.uint8)
+        if arr.ndim == 2:
+            arr = np.stack([arr]*3, axis=-1)
+        image = Image.fromarray(arr)
     except Exception as e:
-        st.error(f"Fehler beim Lesen des Bildes: {e}")
+        st.error(f"Fehler beim Laden des TIFF: {e}")
         st.stop()
 
-    # --- TIFF als PNG in Speicher konvertieren (Canvas-kompatibel) ---
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    buf.seek(0)
-    image_for_canvas = Image.open(buf)
+    st.subheader("Klicke ins Bild, um Punkte zu markieren")
 
-    img_array = np.array(image)
+    # Session State: gespeicherte Punkte
+    if "punkte" not in st.session_state:
+        st.session_state.punkte = []
 
-    st.subheader("Zeichne Objekte direkt auf das Bild")
+    # Klick erfassen
+    coords = streamlit_image_coordinates(image, key="click")
 
-    drawing_mode = st.selectbox(
-        "Zeichenmodus auswählen",
-        ["rect", "circle", "freedraw", "transform"],
-        index=0,
-    )
+    # Wenn neuer Klick erkannt wurde → speichern
+    if coords is not None and coords not in st.session_state.punkte:
+        st.session_state.punkte.append(coords)
 
-    # --- Canvas ---
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 0, 0, 0.3)",
-        stroke_width=3,
-        stroke_color="#FF0000",
-        background_image=image_for_canvas,
-        update_streamlit=True,
-        height=img_array.shape[0],
-        width=img_array.shape[1],
-        drawing_mode=drawing_mode,
-        key="canvas",
-    )
+    # Anzeige der gesetzten Punkte
+    df = pd.DataFrame(st.session_state.punkte)
+    st.write(f"🔢 Anzahl markierter Punkte: **{len(df)}**")
 
-    # --- Ergebnisse ---
-    if canvas_result.json_data is not None:
-        objects = canvas_result.json_data.get("objects", [])
-        n_objects = len(objects)
+    if len(df) > 0:
+        st.dataframe(df, use_container_width=True)
 
-        st.success(f"🧮 Markierte Objekte: **{n_objects}**")
+        # CSV-Export
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "📥 CSV herunterladen",
+            csv,
+            file_name="punkte.csv",
+            mime="text/csv",
+        )
 
-        if n_objects > 0:
-            data = []
-            for i, obj in enumerate(objects):
-                shape_type = obj.get("type", "")
-                left = obj.get("left", 0)
-                top = obj.get("top", 0)
-                width = obj.get("width", 0)
-                height = obj.get("height", 0)
-                data.append(
-                    {
-                        "Index": i + 1,
-                        "Form": shape_type,
-                        "x": round(left, 1),
-                        "y": round(top, 1),
-                        "Breite": round(width, 1),
-                        "Höhe": round(height, 1),
-                    }
-                )
-
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)
-
-            # --- CSV-Export ---
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "📥 CSV herunterladen",
-                csv,
-                file_name="objekte.csv",
-                mime="text/csv",
-            )
+    # Reset-Button
+    if st.button("🔄 Punkte zurücksetzen"):
+        st.session_state.punkte = []
+        st.experimental_rerun()
 
 else:
     st.info("⬆️ Bitte lade ein TIFF-Bild hoch, um zu beginnen.")
-
