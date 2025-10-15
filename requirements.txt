@@ -1,6 +1,6 @@
-streamlit==1.36.0
-streamlit-drawable-canvas==0.9.3
-opencv-python-headless==4.10.0.84
-numpy
+streamlit==1.38.0
+streamlit-image-coordinates==0.1.7
 pillow
+tifffile
+numpy
 pandas
