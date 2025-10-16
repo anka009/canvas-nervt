@@ -34,7 +34,7 @@ if uploaded_file:
     # -------------------- Bildgröße einstellen --------------------
     colW1, colW2 = st.columns([2,1])
     with colW1:
-        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1000, step=100, key="disp_width")
+        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100, key="disp_width")
     with colW2:
         use_full_width = st.checkbox("🔲 Volle Breite nutzen", value=False)
 
