@@ -4,9 +4,6 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
-import json
-
-DISPLAY_WIDTH = 1000
 
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
@@ -26,20 +23,34 @@ if "last_file" not in st.session_state:
 
 uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
 
-# -------------------- Reset bei neuem Bild --------------------
 if uploaded_file:
+    # Reset bei neuem Bild
     if uploaded_file.name != st.session_state.last_file:
         st.session_state.auto_points = []
         st.session_state.manual_points = []
         st.session_state.delete_mode = False
         st.session_state.last_file = uploaded_file.name
 
+    # -------------------- Bildgröße einstellen --------------------
+    colW1, colW2 = st.columns([2,1])
+    with colW1:
+        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1000, step=100, key="disp_width")
+    with colW2:
+        use_full_width = st.checkbox("🔲 Volle Breite nutzen", value=False)
+
     # -------------------- Bild vorbereiten --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
     H_orig, W_orig = image_orig.shape[:2]
-    scale = DISPLAY_WIDTH / W_orig
-    display_size = (DISPLAY_WIDTH, int(H_orig * scale))
-    image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
+
+    if use_full_width:
+        scale = st.session_state.get("scale", DISPLAY_WIDTH / W_orig)
+        display_size = (W_orig, H_orig)
+        image_disp = image_orig.copy()
+    else:
+        scale = DISPLAY_WIDTH / W_orig
+        display_size = (DISPLAY_WIDTH, int(H_orig * scale))
+        image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
+
     gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
 
     # -------------------- Regler --------------------
@@ -80,6 +91,10 @@ if uploaded_file:
 
     st.session_state.auto_points = detected
 
+    # -------------------- Ausgabe: Kerneanzahl über dem Bild --------------------
+    all_points = st.session_state.auto_points + st.session_state.manual_points
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
+
     # -------------------- Bild mit Punkten --------------------
     marked_disp = image_disp.copy()
     for (x,y) in st.session_state.auto_points:
@@ -90,7 +105,7 @@ if uploaded_file:
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_disp),
         key="clickable_image",
-        width=DISPLAY_WIDTH
+        width=None if use_full_width else DISPLAY_WIDTH
     )
 
     # -------------------- Klick-Logik --------------------
@@ -102,21 +117,8 @@ if uploaded_file:
         else:
             st.session_state.manual_points.append((x,y))
 
-    # -------------------- Buttons --------------------
-    colX, colY = st.columns(2)
-    with colX:
-        if st.button("🗑️ Manuelle Punkte löschen"):
-            st.session_state.manual_points = []
-    with colY:
-        if st.button("🗑️ Automatische Punkte löschen"):
-            st.session_state.auto_points = []
-
     # -------------------- Steuerung --------------------
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
-
-    # -------------------- Ausgabe --------------------
-    all_points = st.session_state.auto_points + st.session_state.manual_points
-    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- CSV Export --------------------
     df = pd.DataFrame(all_points, columns=["X_display", "Y_display"])
