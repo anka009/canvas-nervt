@@ -106,7 +106,7 @@ if uploaded_file:
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_live),
         key="clickable_image",
-        width=1000   # <<< feste Anzeigegröße, alles passiert in dieser Skala
+        width=1000   # <<< feste Breite, Anzeige = Arbeitsgröße
     )
 
     if coords is not None:
