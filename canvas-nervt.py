@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image
 import json
 import os
-from streamlit_drawable_canvas import st_canvas
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 PARAM_DB = "zellkern_params.json"
 
@@ -73,88 +73,50 @@ if uploaded_file:
                                 auto_params.get("radius", 8) if auto_params else 8)
     line_thickness = st.sidebar.slider("Liniendicke", 1, 30,
                                        auto_params.get("line_thickness", 2) if auto_params else 2)
-    color = st.sidebar.color_picker("Farbe", auto_params.get("color", "#ff0000") if auto_params else "#ff0000")
-    rgb_color = tuple(int(color.lstrip("#")[i:i+2], 16) for i in (0, 2, 4))
-    bgr_color = rgb_color[::-1]
 
-    # -------------------- CLAHE --------------------
-    contrast = gray.std()
-    clip_limit = 4.0 if contrast < 40 else 2.0 if contrast < 80 else 1.5
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
-    gray = clahe.apply(gray)
-
-    # -------------------- Thresholding --------------------
+    # -------------------- Automatische Erkennung --------------------
     otsu_thresh, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     _, mask = cv2.threshold(gray, otsu_thresh, 255, cv2.THRESH_BINARY)
     if np.mean(gray[mask == 255]) > np.mean(gray[mask == 0]):
         mask = cv2.bitwise_not(mask)
 
-    # -------------------- Morphologie --------------------
-    kernel_size = max(3, min(image.shape[0], image.shape[1]) // 300)
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
     clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
 
-    # -------------------- Konturen --------------------
     contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contours = [c for c in contours if cv2.contourArea(c) >= min_size]
     centers = []
     for c in contours:
-        M = cv2.moments(c)
-        if M["m00"] != 0:
-            centers.append((int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])))
+        if cv2.contourArea(c) >= min_size:
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                centers.append((int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])))
 
     # -------------------- Löschmodus --------------------
     st.subheader("🖍️ Manuelle Bearbeitung")
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
 
-    # -------------------- Canvas (nur Eingabe) --------------------
-    canvas_result = st_canvas(
-        fill_color="rgba(0,0,0,0)",
-        stroke_width=radius,
-        stroke_color=color,
-        background_image=Image.fromarray(image),  # nur Originalbild
-        update_streamlit=True,
-        height=image.shape[0],
-        width=image.shape[1],
-        drawing_mode="point",
-        key="canvas",
-    )
+    # -------------------- Klick ins Bild --------------------
+    coords = streamlit_image_coordinates(Image.fromarray(image), key="clickable_image")
 
-    # -------------------- Klickverarbeitung --------------------
-    if canvas_result.json_data is not None:
-        for obj in canvas_result.json_data["objects"]:
-            x, y = int(obj["left"]), int(obj["top"])
-            clicked = (x, y)
-            if st.session_state.delete_mode:
-                centers = [p for p in centers if not is_near(p, clicked, r=radius)]
-                st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, clicked, r=radius)]
-            else:
-                st.session_state.manual_points.append(clicked)
+    if coords is not None:
+        x, y = coords["x"], coords["y"]
+        if st.session_state.delete_mode:
+            # Löschen: sowohl automatische als auch manuelle Punkte
+            centers = [p for p in centers if not is_near(p, (x, y), r=radius)]
+            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x, y), r=radius)]
+        else:
+            # Hinzufügen
+            st.session_state.manual_points.append((x, y))
 
-    # -------------------- Ausgabe (ein einziges Bild) --------------------
+    # -------------------- Ausgabe --------------------
     all_points = centers + st.session_state.manual_points
     marked_live = image.copy()
     for (x, y) in centers:
-        cv2.circle(marked_live, (x, y), radius, bgr_color, line_thickness)   # automatisch = rot
+        cv2.circle(marked_live, (x, y), radius, (255, 0, 0), line_thickness)   # rot = automatisch
     for (x, y) in st.session_state.manual_points:
-        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness) # manuell = grün
+        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)   # grün = manuell
 
     st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}")
-
-    # -------------------- Parameter speichern --------------------
-    if st.button("💾 Parameter speichern"):
-        new_entry = {
-            "features": features,
-            "params": {
-                "min_size": min_size,
-                "radius": radius,
-                "line_thickness": line_thickness,
-                "color": color
-            }
-        }
-        db.append(new_entry)
-        save_param_db(db)
-        st.success("Parameter gespeichert!")
 
     # -------------------- CSV Export --------------------
     df = pd.DataFrame(all_points, columns=["X", "Y"])
