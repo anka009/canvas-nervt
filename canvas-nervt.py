@@ -147,6 +147,18 @@ if uploaded_file:
     for (x, y) in st.session_state.manual_points:
         cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)
 
+    # Bild vorbereiten für Streamlit
+    if marked_live.max() <= 1.0:
+        marked_live = (marked_live * 255).astype(np.uint8)
+    else:
+        marked_live = marked_live.astype(np.uint8)
+
+    if len(marked_live.shape) == 2:
+        marked_live = cv2.cvtColor(marked_live, cv2.COLOR_GRAY2RGB)
+
+# Anzeige
+st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
+
     st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
 
     # -------------------- Parameter speichern --------------------
