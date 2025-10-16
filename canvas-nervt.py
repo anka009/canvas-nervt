@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
 
-DISPLAY_WIDTH = 1000
+DISPLAY_WIDTH = 1000  # feste Breite für Anzeige und Klicks
 
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
@@ -52,9 +52,16 @@ if uploaded_file:
                     detected.append((cx, cy))
         st.session_state.auto_points = detected
 
-    # -------------------- Klicks abfangen (auf nacktem Bild) --------------------
+    # -------------------- Klick ins Bild --------------------
+    # Erst Bild mit allen Punkten vorbereiten
+    marked_disp = image_disp.copy()
+    for (x,y) in st.session_state.auto_points:
+        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)   # rot = automatisch
+    for (x,y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)   # grün = manuell
+
     coords = streamlit_image_coordinates(
-        Image.fromarray(image_disp),
+        Image.fromarray(marked_disp),
         key="clickable_image",
         width=DISPLAY_WIDTH
     )
@@ -66,15 +73,6 @@ if uploaded_file:
             st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=8)]
         else:
             st.session_state.manual_points.append((x,y))
-
-    # -------------------- Bild mit Markierungen sofort anzeigen --------------------
-    marked_disp = image_disp.copy()
-    for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)   # rot = automatisch
-    for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)   # grün = manuell
-
-    st.image(marked_disp, width=DISPLAY_WIDTH)
 
     # -------------------- Steuerung --------------------
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
