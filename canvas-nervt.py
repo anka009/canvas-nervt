@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
+import json
 
 DISPLAY_WIDTH = 1000
 
@@ -20,10 +21,21 @@ if "manual_points" not in st.session_state:
     st.session_state.manual_points = []
 if "delete_mode" not in st.session_state:
     st.session_state.delete_mode = False
+if "last_file" not in st.session_state:
+    st.session_state.last_file = None
+if "params" not in st.session_state:
+    st.session_state.params = {}
 
 uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
 
+# -------------------- Reset bei neuem Bild --------------------
 if uploaded_file:
+    if uploaded_file.name != st.session_state.last_file:
+        st.session_state.auto_points = []
+        st.session_state.manual_points = []
+        st.session_state.delete_mode = False
+        st.session_state.last_file = uploaded_file.name
+
     # -------------------- Parametersteuerung --------------------
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -36,6 +48,36 @@ if uploaded_file:
         circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
         line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
 
+    # -------------------- Parameter speichern / laden --------------------
+    colA, colB = st.columns(2)
+    with colA:
+        if st.button("💾 Einstellungen speichern"):
+            st.session_state.params = {
+                "blur_kernel": blur_kernel,
+                "min_area": min_area,
+                "thresh_val": thresh_val,
+                "alpha": alpha,
+                "circle_radius": circle_radius,
+                "line_thickness": line_thickness,
+            }
+            st.download_button(
+                "📥 Download Einstellungen",
+                data=json.dumps(st.session_state.params, indent=2),
+                file_name="zell_params.json",
+                mime="application/json"
+            )
+    with colB:
+        uploaded_params = st.file_uploader("⚙️ Einstellungen laden", type=["json"], key="params_upload")
+        if uploaded_params:
+            loaded = json.load(uploaded_params)
+            blur_kernel = loaded.get("blur_kernel", blur_kernel)
+            min_area = loaded.get("min_area", min_area)
+            thresh_val = loaded.get("thresh_val", thresh_val)
+            alpha = loaded.get("alpha", alpha)
+            circle_radius = loaded.get("circle_radius", circle_radius)
+            line_thickness = loaded.get("line_thickness", line_thickness)
+            st.success("✅ Einstellungen geladen")
+
     # -------------------- Bild laden & skalieren --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
     H_orig, W_orig = image_orig.shape[:2]
@@ -44,33 +86,38 @@ if uploaded_file:
     image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
     gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
 
-    # -------------------- Automatische Erkennung --------------------
-    proc = cv2.convertScaleAbs(gray_disp, alpha=alpha, beta=0)
-    if blur_kernel > 1:
-        proc = cv2.GaussianBlur(proc, (blur_kernel, blur_kernel), 0)
-
-    if thresh_val == 0:
-        otsu_thresh, _ = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    else:
-        otsu_thresh = thresh_val
-    _, mask = cv2.threshold(proc, otsu_thresh, 255, cv2.THRESH_BINARY)
-
-    if np.mean(proc[mask == 255]) > np.mean(proc[mask == 0]):
-        mask = cv2.bitwise_not(mask)
-
-    kernel = np.ones((3, 3), np.uint8)
-    clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
-    contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    detected = []
-    for c in contours:
-        if cv2.contourArea(c) >= min_area:
-            M = cv2.moments(c)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                detected.append((cx, cy))
-    st.session_state.auto_points = detected
+    # -------------------- Buttons für Auto/Manuell löschen --------------------
+    colX, colY, colZ = st.columns(3)
+    with colX:
+        if st.button("🗑️ Manuelle Punkte löschen"):
+            st.session_state.manual_points = []
+    with colY:
+        if st.button("🗑️ Automatische Punkte löschen"):
+            st.session_state.auto_points = []
+    with colZ:
+        if st.button("🔄 Auto-Erkennung starten"):
+            proc = cv2.convertScaleAbs(gray_disp, alpha=alpha, beta=0)
+            if blur_kernel > 1:
+                proc = cv2.GaussianBlur(proc, (blur_kernel, blur_kernel), 0)
+            if thresh_val == 0:
+                otsu_thresh, _ = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            else:
+                otsu_thresh = thresh_val
+            _, mask = cv2.threshold(proc, otsu_thresh, 255, cv2.THRESH_BINARY)
+            if np.mean(proc[mask == 255]) > np.mean(proc[mask == 0]):
+                mask = cv2.bitwise_not(mask)
+            kernel = np.ones((3, 3), np.uint8)
+            clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
+            contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            detected = []
+            for c in contours:
+                if cv2.contourArea(c) >= min_area:
+                    M = cv2.moments(c)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        detected.append((cx, cy))
+            st.session_state.auto_points = detected
 
     # -------------------- Bild mit Punkten --------------------
     marked_disp = image_disp.copy()
