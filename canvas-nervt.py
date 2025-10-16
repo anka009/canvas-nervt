@@ -148,14 +148,22 @@ if uploaded_file:
         cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)
 
     # 🔧 FIX: Bild für Streamlit vorbereiten
-    if marked_live.max() <= 1.0:
-        marked_live = (marked_live * 255).astype(np.uint8)
+    if marked_live is None or not isinstance(marked_live, np.ndarray):
+        st.error("Fehler: Kein gültiges Bild erzeugt.")
     else:
-        marked_live = marked_live.astype(np.uint8)
-    if len(marked_live.shape) == 2:
-        marked_live = cv2.cvtColor(marked_live, cv2.COLOR_GRAY2RGB)
+        if marked_live.dtype != np.uint8:
+            if marked_live.max() <= 1.0:
+                marked_live = (marked_live * 255).astype(np.uint8)
+            else:
+                marked_live = marked_live.astype(np.uint8)
 
-    st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
+        if len(marked_live.shape) == 2:
+            marked_live = cv2.cvtColor(marked_live, cv2.COLOR_GRAY2RGB)
+
+        if marked_live.shape[-1] not in (3, 4):
+            st.error(f"Unerwartete Bildform: {marked_live.shape}")
+        else:
+            st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
 
     # -------------------- Parameter speichern --------------------
     if st.button("💾 Parameter speichern"):
