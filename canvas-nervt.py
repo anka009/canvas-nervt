@@ -103,7 +103,11 @@ if uploaded_file:
         cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)   # grün = manuell
 
     # -------------------- Klick ins markierte Bild --------------------
-    coords = streamlit_image_coordinates(Image.fromarray(marked_live), key="clickable_image")
+    coords = streamlit_image_coordinates(
+        Image.fromarray(marked_live),
+        key="clickable_image",
+        use_column_width=True   # <<< sorgt dafür, dass das Bild immer komplett passt
+    )
 
     if coords is not None:
         x, y = coords["x"], coords["y"]
