@@ -55,7 +55,7 @@ if "manual_points" not in st.session_state:
 if "delete_mode" not in st.session_state:
     st.session_state.delete_mode = False
 
-uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff"])
+uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
 
 if uploaded_file:
     image = np.array(Image.open(uploaded_file).convert("RGB"))
@@ -154,23 +154,15 @@ if uploaded_file:
         st.write("DEBUG: dtype:", marked_live.dtype)
         st.write("DEBUG: min/max:", marked_live.min(), marked_live.max())
 
-    # 🔧 FIX: Bild für Streamlit vorbereiten
-    if isinstance(marked_live, np.ndarray):
-        if marked_live.dtype != np.uint8:
-            if marked_live.max() <= 1.0:
-                marked_live = (marked_live * 255).astype(np.uint8)
-            else:
-                marked_live = marked_live.astype(np.uint8)
-
-        if len(marked_live.shape) == 2:
-            marked_live = cv2.cvtColor(marked_live, cv2.COLOR_GRAY2RGB)
-
-        if marked_live.ndim == 3 and marked_live.shape[2] in (3, 4):
-            st.image(marked_live, caption=f" Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
-        else:
-            st.error(f"❌ Unerwartete Bildform: {marked_live.shape}")
-    else:
-        st.error("❌ marked_live ist kein Numpy-Array")
+    # ✅ Sichere Anzeige mit Fallback
+    try:
+        st.image(marked_live, caption=f"Gesamtanzahl Kerne: {len(all_points)}")
+    except Exception as e:
+        st.warning(f"⚠️ Anzeige über NumPy-Array fehlgeschlagen ({e}). Fallback über PIL wird genutzt.")
+        try:
+            st.image(Image.fromarray(marked_live), caption=f"Gesamtanzahl Kerne: {len(all_points)}")
+        except Exception as e2:
+            st.error(f"❌ Auch Fallback fehlgeschlagen: {e2}")
 
     # -------------------- Parameter speichern --------------------
     if st.button("💾 Parameter speichern"):
