@@ -110,9 +110,9 @@ if uploaded_file:
     # -------------------- Canvas --------------------
     marked = image.copy()
     for (x, y) in centers:
-        cv2.circle(marked, (x, y), radius, bgr_color, line_thickness)
+        cv2.circle(marked, (x, y), radius, bgr_color, line_thickness)   # automatisch = rot
     for (x, y) in st.session_state.manual_points:
-        cv2.circle(marked, (x, y), radius, (0, 255, 0), line_thickness)
+        cv2.circle(marked, (x, y), radius, (0, 255, 0), line_thickness) # manuell = grün
 
     canvas_result = st_canvas(
         fill_color="rgba(0, 0, 0, 0)",
@@ -134,9 +134,11 @@ if uploaded_file:
             clicked = (x, y)
 
             if st.session_state.delete_mode:
-                centers = [p for p in centers if not is_near(p, clicked)]
-                st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, clicked)]
+                # Lösche sowohl automatische als auch manuelle Punkte in der Nähe
+                centers = [p for p in centers if not is_near(p, clicked, r=radius)]
+                st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, clicked, r=radius)]
             else:
+                # Neuen manuellen Punkt hinzufügen
                 st.session_state.manual_points.append(clicked)
 
     # -------------------- Ausgabe --------------------
@@ -152,10 +154,7 @@ if uploaded_file:
         st.image(marked_live, caption=f"Gesamtanzahl Kerne: {len(all_points)}")
     except Exception as e:
         st.warning(f"⚠️ Anzeige über NumPy-Array fehlgeschlagen ({e}). Fallback über PIL wird genutzt.")
-        try:
-            st.image(Image.fromarray(marked_live), caption=f"Gesamtanzahl Kerne: {len(all_points)}")
-        except Exception as e2:
-            st.error(f"❌ Auch Fallback fehlgeschlagen: {e2}")
+        st.image(Image.fromarray(marked_live), caption=f"Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- Parameter speichern --------------------
     if st.button("💾 Parameter speichern"):
