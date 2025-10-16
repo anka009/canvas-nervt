@@ -4,3 +4,4 @@ pillow
 tifffile
 numpy
 pandas
+opencv-python-headless
