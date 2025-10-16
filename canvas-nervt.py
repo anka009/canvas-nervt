@@ -3,18 +3,23 @@ import cv2
 import numpy as np
 import pandas as pd
 from PIL import Image
-from streamlit_drawable_canvas import st_canvas
+from streamlit_image_coordinates import streamlit_image_coordinates
 
-DISPLAY_WIDTH = 1000
+DISPLAY_WIDTH = 1000  # feste Breite für Anzeige und Klicks
+
+def is_near(p1, p2, r=10):
+    return np.linalg.norm(np.array(p1) - np.array(p2)) < r
 
 st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
 st.title("🧬 Interaktiver Zellkern-Zähler")
 
 # -------------------- Session State --------------------
-if "points" not in st.session_state:
-    st.session_state.points = []  # Liste von (x,y)
-if "mode" not in st.session_state:
-    st.session_state.mode = "add"
+if "auto_points" not in st.session_state:
+    st.session_state.auto_points = []
+if "manual_points" not in st.session_state:
+    st.session_state.manual_points = []
+if "delete_mode" not in st.session_state:
+    st.session_state.delete_mode = False
 
 uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
 
@@ -27,8 +32,8 @@ if uploaded_file:
     image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
     gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
 
-    # -------------------- Auto-Erkennung nur beim ersten Laden --------------------
-    if not st.session_state.points:
+    # -------------------- Automatische Erkennung nur beim ersten Laden --------------------
+    if not st.session_state.auto_points:
         otsu_thresh, _ = cv2.threshold(gray_disp, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         _, mask = cv2.threshold(gray_disp, otsu_thresh, 255, cv2.THRESH_BINARY)
         if np.mean(gray_disp[mask == 255]) > np.mean(gray_disp[mask == 0]):
@@ -39,80 +44,46 @@ if uploaded_file:
 
         detected = []
         for c in contours:
-            if cv2.contourArea(c) >= 100:
+            if cv2.contourArea(c) >= 100:  # Mindestgröße
                 M = cv2.moments(c)
                 if M["m00"] != 0:
                     cx = int(M["m10"] / M["m00"])
                     cy = int(M["m01"] / M["m00"])
                     detected.append((cx, cy))
-        st.session_state.points = detected
+        st.session_state.auto_points = detected
 
-    # -------------------- UI: Modus & Einstellungen --------------------
-    col1, col2 = st.columns([1,2])
-    with col1:
-        st.session_state.mode = st.radio(
-            "Modus",
-            options=["add", "edit"],
-            index=0 if st.session_state.mode == "add" else 1,
-            help="add = neue Punkte setzen; edit = Punkte verschieben/löschen"
-        )
-    with col2:
-        radius_px = st.slider("Punkt-Radius (px)", 3, 20, 8)
+    # -------------------- Klick ins Bild --------------------
+    # Erst Bild mit allen Punkten vorbereiten
+    marked_disp = image_disp.copy()
+    for (x,y) in st.session_state.auto_points:
+        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)   # rot = automatisch
+    for (x,y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)   # grün = manuell
 
-    # Vorhandene Punkte als initiale Shapes für Canvas
-    initial_objects = []
-    for (x, y) in st.session_state.points:
-        initial_objects.append({
-            "type": "circle",
-            "left": x - radius_px,
-            "top": y - radius_px,
-            "radius": radius_px,
-            "fill": "rgba(0, 255, 0, 0.3)",
-            "stroke": "rgba(0, 255, 0, 1)",
-            "strokeWidth": 2,
-        })
-
-    # -------------------- Canvas --------------------
-    canvas_result = st_canvas(
-        fill_color="rgba(0, 255, 0, 0.3)",
-        stroke_color="rgba(0, 255, 0, 1)",
-        background_image=Image.fromarray(image_disp),
-        update_streamlit=True,
-        height=display_size[1],
-        width=display_size[0],
-        drawing_mode=("circle" if st.session_state.mode == "add" else "transform"),
-        initial_drawing={"version": "4.4.0", "objects": initial_objects},
-        key="canvas",
-        stroke_width=2,
-        display_toolbar=False,
+    coords = streamlit_image_coordinates(
+        Image.fromarray(marked_disp),
+        key="clickable_image",
+        width=DISPLAY_WIDTH
     )
 
-    # -------------------- Punkte aus Canvas übernehmen --------------------
-    if canvas_result.json_data is not None and "objects" in canvas_result.json_data:
-        new_points = []
-        for obj in canvas_result.json_data["objects"]:
-            if obj.get("type") == "circle":
-                left = obj.get("left", 0)
-                top = obj.get("top", 0)
-                radius = int(obj.get("radius", radius_px))
-                cx = int(left + radius)
-                cy = int(top + radius)
-                new_points.append((cx, cy))
-        st.session_state.points = new_points
+    if coords is not None:
+        x, y = coords["x"], coords["y"]
+        if st.session_state.delete_mode:
+            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x,y), r=8)]
+            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=8)]
+        else:
+            st.session_state.manual_points.append((x,y))
+
+    # -------------------- Steuerung --------------------
+    st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
 
     # -------------------- Ausgabe --------------------
-    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(st.session_state.points)}")
-
-    colA, colB = st.columns([1,2])
-    with colA:
-        if st.button("🗑️ Alle Punkte löschen"):
-            st.session_state.points = []
-            st.experimental_rerun()
+    all_points = st.session_state.auto_points + st.session_state.manual_points
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- CSV Export --------------------
-    if st.session_state.points:
-        df = pd.DataFrame(st.session_state.points, columns=["X_display", "Y_display"])
-        df["X_original"] = (df["X_display"] / scale).round().astype(int)
-        df["Y_original"] = (df["Y_display"] / scale).round().astype(int)
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
+    df = pd.DataFrame(all_points, columns=["X_display", "Y_display"])
+    df["X_original"] = (df["X_display"] / scale).round().astype(int)
+    df["Y_original"] = (df["Y_display"] / scale).round().astype(int)
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
