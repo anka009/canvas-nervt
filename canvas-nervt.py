@@ -23,8 +23,6 @@ if "delete_mode" not in st.session_state:
     st.session_state.delete_mode = False
 if "last_file" not in st.session_state:
     st.session_state.last_file = None
-if "params" not in st.session_state:
-    st.session_state.params = {}
 
 uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
 
@@ -36,49 +34,7 @@ if uploaded_file:
         st.session_state.delete_mode = False
         st.session_state.last_file = uploaded_file.name
 
-    # -------------------- Parametersteuerung --------------------
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        blur_kernel = st.slider("🔧 Schärfe (GaussianBlur Kernel)", 1, 21, 5, step=2)
-        min_area = st.number_input("📏 Mindestfläche", 10, 2000, 100)
-    with col2:
-        thresh_val = st.slider("🎚️ Threshold (0 = Otsu)", 0, 255, 0)
-        alpha = st.slider("🌗 Alpha (Kontrast)", 0.1, 3.0, 1.0, step=0.1)
-    with col3:
-        circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
-        line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
-
-    # -------------------- Parameter speichern / laden --------------------
-    colA, colB = st.columns(2)
-    with colA:
-        if st.button("💾 Einstellungen speichern"):
-            st.session_state.params = {
-                "blur_kernel": blur_kernel,
-                "min_area": min_area,
-                "thresh_val": thresh_val,
-                "alpha": alpha,
-                "circle_radius": circle_radius,
-                "line_thickness": line_thickness,
-            }
-            st.download_button(
-                "📥 Download Einstellungen",
-                data=json.dumps(st.session_state.params, indent=2),
-                file_name="zell_params.json",
-                mime="application/json"
-            )
-    with colB:
-        uploaded_params = st.file_uploader("⚙️ Einstellungen laden", type=["json"], key="params_upload")
-        if uploaded_params:
-            loaded = json.load(uploaded_params)
-            blur_kernel = loaded.get("blur_kernel", blur_kernel)
-            min_area = loaded.get("min_area", min_area)
-            thresh_val = loaded.get("thresh_val", thresh_val)
-            alpha = loaded.get("alpha", alpha)
-            circle_radius = loaded.get("circle_radius", circle_radius)
-            line_thickness = loaded.get("line_thickness", line_thickness)
-            st.success("✅ Einstellungen geladen")
-
-    # -------------------- Bild laden & skalieren --------------------
+    # -------------------- Bild vorbereiten --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
     H_orig, W_orig = image_orig.shape[:2]
     scale = DISPLAY_WIDTH / W_orig
@@ -86,7 +42,32 @@ if uploaded_file:
     image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
     gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
 
-    # -------------------- Buttons für Auto/Manuell löschen --------------------
+    # -------------------- Bild mit Punkten anzeigen --------------------
+    marked_disp = image_disp.copy()
+    for (x,y) in st.session_state.auto_points:
+        cv2.circle(marked_disp, (x,y), st.session_state.get("circle_radius", 8), (255,0,0), st.session_state.get("line_thickness", 2))
+    for (x,y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x,y), st.session_state.get("circle_radius", 8), (0,255,0), st.session_state.get("line_thickness", 2))
+
+    coords = streamlit_image_coordinates(
+        Image.fromarray(marked_disp),
+        key="clickable_image",
+        width=DISPLAY_WIDTH
+    )
+
+    # -------------------- Regler --------------------
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        blur_kernel = st.slider("🔧 Schärfe (GaussianBlur Kernel)", 1, 21, st.session_state.get("blur_kernel", 5), step=2, key="blur_kernel")
+        min_area = st.number_input("📏 Mindestfläche", 10, 2000, st.session_state.get("min_area", 100), key="min_area")
+    with col2:
+        thresh_val = st.slider("🎚️ Threshold (0 = Otsu)", 0, 255, st.session_state.get("thresh_val", 0), key="thresh_val")
+        alpha = st.slider("🌗 Alpha (Kontrast)", 0.1, 3.0, st.session_state.get("alpha", 1.0), step=0.1, key="alpha")
+    with col3:
+        circle_radius = st.slider("⚪ Kreisradius", 3, 20, st.session_state.get("circle_radius", 8), key="circle_radius")
+        line_thickness = st.slider("📏 Linienstärke", 1, 5, st.session_state.get("line_thickness", 2), key="line_thickness")
+
+    # -------------------- Buttons --------------------
     colX, colY, colZ = st.columns(3)
     with colX:
         if st.button("🗑️ Manuelle Punkte löschen"):
@@ -119,19 +100,7 @@ if uploaded_file:
                         detected.append((cx, cy))
             st.session_state.auto_points = detected
 
-    # -------------------- Bild mit Punkten --------------------
-    marked_disp = image_disp.copy()
-    for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)   # rot = automatisch
-    for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)   # grün = manuell
-
-    coords = streamlit_image_coordinates(
-        Image.fromarray(marked_disp),
-        key="clickable_image",
-        width=DISPLAY_WIDTH
-    )
-
+    # -------------------- Klick-Logik --------------------
     if coords is not None:
         x, y = coords["x"], coords["y"]
         if st.session_state.delete_mode:
@@ -149,7 +118,12 @@ if uploaded_file:
 
     # -------------------- CSV Export --------------------
     df = pd.DataFrame(all_points, columns=["X_display", "Y_display"])
-    df["X_original"] = (df["X_display"] / scale).round().astype(int)
-    df["Y_original"] = (df["Y_display"] / scale).round().astype(int)
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
+    if not df.empty:
+        df["X_display"] = pd.to_numeric(df["X_display"], errors="coerce")
+        df["Y_display"] = pd.to_numeric(df["Y_display"], errors="coerce")
+        df["X_original"] = (df["X_display"] / scale).round().astype("Int64")
+        df["Y_original"] = (df["Y_display"] / scale).round().astype("Int64")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
+    else:
+        st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
