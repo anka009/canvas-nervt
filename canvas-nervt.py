@@ -107,19 +107,12 @@ if uploaded_file:
     st.subheader("🖍️ Manuelle Bearbeitung")
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
 
-    # -------------------- Bild mit Kreisen vorbereiten --------------------
-    marked_live = image.copy()
-    for (x, y) in centers:
-        cv2.circle(marked_live, (x, y), radius, bgr_color, line_thickness)   # automatisch = rot
-    for (x, y) in st.session_state.manual_points:
-        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness) # manuell = grün
-
-    # -------------------- Canvas --------------------
+    # -------------------- Canvas (nur Eingabe) --------------------
     canvas_result = st_canvas(
-        fill_color="rgba(0, 0, 0, 0)",
+        fill_color="rgba(0,0,0,0)",
         stroke_width=radius,
         stroke_color=color,
-        background_image=Image.fromarray(marked_live),
+        background_image=Image.fromarray(image),  # nur Originalbild
         update_streamlit=True,
         height=image.shape[0],
         width=image.shape[1],
@@ -130,21 +123,23 @@ if uploaded_file:
     # -------------------- Klickverarbeitung --------------------
     if canvas_result.json_data is not None:
         for obj in canvas_result.json_data["objects"]:
-            x = int(obj["left"])
-            y = int(obj["top"])
+            x, y = int(obj["left"]), int(obj["top"])
             clicked = (x, y)
-
             if st.session_state.delete_mode:
-                # Lösche sowohl automatische als auch manuelle Punkte
                 centers = [p for p in centers if not is_near(p, clicked, r=radius)]
                 st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, clicked, r=radius)]
             else:
-                # Neuen manuellen Punkt hinzufügen
                 st.session_state.manual_points.append(clicked)
 
-    # -------------------- Ausgabe --------------------
+    # -------------------- Ausgabe (ein einziges Bild) --------------------
     all_points = centers + st.session_state.manual_points
-    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
+    marked_live = image.copy()
+    for (x, y) in centers:
+        cv2.circle(marked_live, (x, y), radius, bgr_color, line_thickness)   # automatisch = rot
+    for (x, y) in st.session_state.manual_points:
+        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness) # manuell = grün
+
+    st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- Parameter speichern --------------------
     if st.button("💾 Parameter speichern"):
