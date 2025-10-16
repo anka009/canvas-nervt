@@ -107,18 +107,19 @@ if uploaded_file:
     st.subheader("🖍️ Manuelle Bearbeitung")
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
 
-    # -------------------- Canvas --------------------
-    marked = image.copy()
+    # -------------------- Bild mit Kreisen vorbereiten --------------------
+    marked_live = image.copy()
     for (x, y) in centers:
-        cv2.circle(marked, (x, y), radius, bgr_color, line_thickness)   # automatisch = rot
+        cv2.circle(marked_live, (x, y), radius, bgr_color, line_thickness)   # automatisch = rot
     for (x, y) in st.session_state.manual_points:
-        cv2.circle(marked, (x, y), radius, (0, 255, 0), line_thickness) # manuell = grün
+        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness) # manuell = grün
 
+    # -------------------- Canvas --------------------
     canvas_result = st_canvas(
         fill_color="rgba(0, 0, 0, 0)",
         stroke_width=radius,
         stroke_color=color,
-        background_image=Image.fromarray(marked),
+        background_image=Image.fromarray(marked_live),
         update_streamlit=True,
         height=image.shape[0],
         width=image.shape[1],
@@ -134,7 +135,7 @@ if uploaded_file:
             clicked = (x, y)
 
             if st.session_state.delete_mode:
-                # Lösche sowohl automatische als auch manuelle Punkte in der Nähe
+                # Lösche sowohl automatische als auch manuelle Punkte
                 centers = [p for p in centers if not is_near(p, clicked, r=radius)]
                 st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, clicked, r=radius)]
             else:
@@ -143,18 +144,7 @@ if uploaded_file:
 
     # -------------------- Ausgabe --------------------
     all_points = centers + st.session_state.manual_points
-    marked_live = image.copy()
-    for (x, y) in centers:
-        cv2.circle(marked_live, (x, y), radius, bgr_color, line_thickness)
-    for (x, y) in st.session_state.manual_points:
-        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)
-
-    # ✅ Sichere Anzeige mit Fallback
-    try:
-        st.image(marked_live, caption=f"Gesamtanzahl Kerne: {len(all_points)}")
-    except Exception as e:
-        st.warning(f"⚠️ Anzeige über NumPy-Array fehlgeschlagen ({e}). Fallback über PIL wird genutzt.")
-        st.image(Image.fromarray(marked_live), caption=f"Gesamtanzahl Kerne: {len(all_points)}")
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- Parameter speichern --------------------
     if st.button("💾 Parameter speichern"):
