@@ -190,4 +190,4 @@ if uploaded_file:
     # -------------------- CSV Export --------------------
     df = pd.DataFrame(all_points, columns=["X", "Y"])
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/c
+    st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv"
