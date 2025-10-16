@@ -166,7 +166,7 @@ if uploaded_file:
             marked_live = cv2.cvtColor(marked_live, cv2.COLOR_GRAY2RGB)
 
         if marked_live.ndim == 3 and marked_live.shape[2] in (3, 4):
-            st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
+            st.image(marked_live, caption=f" Gesamtanzahl Kerne: {len(all_points)}", use_container_width=True)
         else:
             st.error(f"❌ Unerwartete Bildform: {marked_live.shape}")
     else:
