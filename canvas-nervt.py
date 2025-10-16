@@ -52,16 +52,9 @@ if uploaded_file:
                     detected.append((cx, cy))
         st.session_state.auto_points = detected
 
-    # -------------------- Klicks abfangen --------------------
-    # Bild mit allen Punkten vorbereiten
-    marked_disp = image_disp.copy()
-    for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)   # rot = automatisch
-    for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)   # grün = manuell
-
+    # -------------------- Klicks abfangen (auf nacktem Bild) --------------------
     coords = streamlit_image_coordinates(
-        Image.fromarray(marked_disp),
+        Image.fromarray(image_disp),
         key="clickable_image",
         width=DISPLAY_WIDTH
     )
@@ -73,6 +66,15 @@ if uploaded_file:
             st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=8)]
         else:
             st.session_state.manual_points.append((x,y))
+
+    # -------------------- Bild mit Markierungen sofort anzeigen --------------------
+    marked_disp = image_disp.copy()
+    for (x,y) in st.session_state.auto_points:
+        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)   # rot = automatisch
+    for (x,y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)   # grün = manuell
+
+    st.image(marked_disp, width=DISPLAY_WIDTH)
 
     # -------------------- Steuerung --------------------
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
