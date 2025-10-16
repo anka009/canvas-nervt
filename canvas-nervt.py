@@ -106,26 +106,11 @@ if uploaded_file:
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_live),
         key="clickable_image",
-        use_column_width=True
+        use_column_width=True   # <<< Bild wird immer passend skaliert
     )
 
     if coords is not None:
-        # Klickkoordinaten im angezeigten Bild
-        x_click, y_click = coords["x"], coords["y"]
-        display_width = coords["display_width"]
-        display_height = coords["display_height"]
-
-        # Originalgröße
-        orig_height, orig_width = image.shape[:2]
-
-        # Skalierungsfaktor berechnen
-        scale_x = orig_width / display_width
-        scale_y = orig_height / display_height
-
-        # Klick auf Originalgröße umrechnen
-        x = int(x_click * scale_x)
-        y = int(y_click * scale_y)
-
+        x, y = coords["x"], coords["y"]
         if st.session_state.delete_mode:
             centers = [p for p in centers if not is_near(p, (x, y), r=radius)]
             st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x, y), r=radius)]
