@@ -95,8 +95,15 @@ if uploaded_file:
     st.subheader("🖍️ Manuelle Bearbeitung")
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
 
-    # -------------------- Klick ins Bild --------------------
-    coords = streamlit_image_coordinates(Image.fromarray(image), key="clickable_image")
+    # -------------------- Bild mit allen Punkten rendern --------------------
+    marked_live = image.copy()
+    for (x, y) in centers:
+        cv2.circle(marked_live, (x, y), radius, (255, 0, 0), line_thickness)   # rot = automatisch
+    for (x, y) in st.session_state.manual_points:
+        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)   # grün = manuell
+
+    # -------------------- Klick ins markierte Bild --------------------
+    coords = streamlit_image_coordinates(Image.fromarray(marked_live), key="clickable_image")
 
     if coords is not None:
         x, y = coords["x"], coords["y"]
@@ -110,13 +117,7 @@ if uploaded_file:
 
     # -------------------- Ausgabe --------------------
     all_points = centers + st.session_state.manual_points
-    marked_live = image.copy()
-    for (x, y) in centers:
-        cv2.circle(marked_live, (x, y), radius, (255, 0, 0), line_thickness)   # rot = automatisch
-    for (x, y) in st.session_state.manual_points:
-        cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)   # grün = manuell
-
-    st.image(marked_live, caption=f"🔢 Gesamtanzahl Kerne: {len(all_points)}")
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- CSV Export --------------------
     df = pd.DataFrame(all_points, columns=["X", "Y"])
