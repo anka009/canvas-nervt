@@ -52,7 +52,7 @@ if uploaded_file:
                     detected.append((cx, cy))
         st.session_state.auto_points = detected
 
-    # -------------------- Klick ins Bild --------------------
+    # -------------------- Klick abfragen --------------------
     # Erst Bild mit allen Punkten vorbereiten
     marked_disp = image_disp.copy()
     for (x,y) in st.session_state.auto_points:
@@ -73,6 +73,18 @@ if uploaded_file:
             st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=8)]
         else:
             st.session_state.manual_points.append((x,y))
+
+        # 👉 Sofortiges Redraw: Bild direkt nach Klick neu zeichnen
+        marked_disp = image_disp.copy()
+        for (x,y) in st.session_state.auto_points:
+            cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)
+        for (x,y) in st.session_state.manual_points:
+            cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)
+        st.image(marked_disp, width=DISPLAY_WIDTH)
+
+    else:
+        # Falls kein Klick: Bild trotzdem anzeigen
+        st.image(marked_disp, width=DISPLAY_WIDTH)
 
     # -------------------- Steuerung --------------------
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
