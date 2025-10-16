@@ -147,13 +147,6 @@ if uploaded_file:
     for (x, y) in st.session_state.manual_points:
         cv2.circle(marked_live, (x, y), radius, (0, 255, 0), line_thickness)
 
-    # 🔧 DEBUG: Bild prüfen bevor es angezeigt wird
-    st.write("DEBUG: type:", type(marked_live))
-    if isinstance(marked_live, np.ndarray):
-        st.write("DEBUG: shape:", marked_live.shape)
-        st.write("DEBUG: dtype:", marked_live.dtype)
-        st.write("DEBUG: min/max:", marked_live.min(), marked_live.max())
-
     # ✅ Sichere Anzeige mit Fallback
     try:
         st.image(marked_live, caption=f"Gesamtanzahl Kerne: {len(all_points)}")
