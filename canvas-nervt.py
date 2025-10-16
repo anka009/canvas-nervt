@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
 
-DISPLAY_WIDTH = 1000  # feste Breite für Anzeige und Klicks
+DISPLAY_WIDTH = 1000
 
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
@@ -52,14 +52,14 @@ if uploaded_file:
                     detected.append((cx, cy))
         st.session_state.auto_points = detected
 
-    # -------------------- Klick abfragen --------------------
-    # Erst Bild mit allen Punkten vorbereiten
+    # -------------------- Bild mit allen Punkten vorbereiten --------------------
     marked_disp = image_disp.copy()
     for (x,y) in st.session_state.auto_points:
         cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)   # rot = automatisch
     for (x,y) in st.session_state.manual_points:
         cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)   # grün = manuell
 
+    # -------------------- Klicks abfangen und sofort neu zeichnen --------------------
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_disp),
         key="clickable_image",
@@ -74,16 +74,12 @@ if uploaded_file:
         else:
             st.session_state.manual_points.append((x,y))
 
-        # 👉 Sofortiges Redraw: Bild direkt nach Klick neu zeichnen
+        # 👉 sofort neu zeichnen
         marked_disp = image_disp.copy()
         for (x,y) in st.session_state.auto_points:
             cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)
         for (x,y) in st.session_state.manual_points:
             cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)
-        st.image(marked_disp, width=DISPLAY_WIDTH)
-
-    else:
-        # Falls kein Klick: Bild trotzdem anzeigen
         st.image(marked_disp, width=DISPLAY_WIDTH)
 
     # -------------------- Steuerung --------------------
