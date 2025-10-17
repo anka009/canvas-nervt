@@ -25,7 +25,7 @@ def get_centers(mask, min_area=50):
 st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
 st.title("🧬 Interaktiver Zellkern-Zähler")
 
-# -------------------- Session State --------------------
+# -------------------- Session State Defaults --------------------
 keys_defaults = {
     "aec_points": [], "hema_points": [], "manual_points": [],
     "bg_points": [], "delete_mode": False, "last_file": None, "disp_width": 1400,
@@ -84,22 +84,38 @@ if uploaded_file:
     col4, col5 = st.columns(2)
     with col4:
         st.markdown("**AEC (rot/braun)**")
-        st.session_state.aec_hue_min1 = st.slider("Hue Min1 (AEC)", 0, 180, st.session_state.aec_hue_min1, key="aec_hue_min1")
-        st.session_state.aec_hue_max1 = st.slider("Hue Max1 (AEC)", 0, 180, st.session_state.aec_hue_max1, key="aec_hue_max1")
-        st.session_state.aec_hue_min2 = st.slider("Hue Min2 (AEC)", 0, 180, st.session_state.aec_hue_min2, key="aec_hue_min2")
-        st.session_state.aec_hue_max2 = st.slider("Hue Max2 (AEC)", 0, 180, st.session_state.aec_hue_max2, key="aec_hue_max2")
-        st.session_state.aec_s_min = st.slider("Sättigung Min (AEC)", 0, 255, st.session_state.aec_s_min, key="aec_s_min")
-        st.session_state.aec_s_max = st.slider("Sättigung Max (AEC)", 0, 255, st.session_state.aec_s_max, key="aec_s_max")
-        st.session_state.aec_v_min = st.slider("Helligkeit Min (AEC)", 0, 255, st.session_state.aec_v_min, key="aec_v_min")
-        st.session_state.aec_v_max = st.slider("Helligkeit Max (AEC)", 0, 255, st.session_state.aec_v_max, key="aec_v_max")
+        aec_hue_min1 = st.slider("Hue Min1 (AEC)", 0, 180, st.session_state.aec_hue_min1, key="aec_hue_min1_slider")
+        aec_hue_max1 = st.slider("Hue Max1 (AEC)", 0, 180, st.session_state.aec_hue_max1, key="aec_hue_max1_slider")
+        aec_hue_min2 = st.slider("Hue Min2 (AEC)", 0, 180, st.session_state.aec_hue_min2, key="aec_hue_min2_slider")
+        aec_hue_max2 = st.slider("Hue Max2 (AEC)", 0, 180, st.session_state.aec_hue_max2, key="aec_hue_max2_slider")
+        aec_s_min = st.slider("Sättigung Min (AEC)", 0, 255, st.session_state.aec_s_min, key="aec_s_min_slider")
+        aec_s_max = st.slider("Sättigung Max (AEC)", 0, 255, st.session_state.aec_s_max, key="aec_s_max_slider")
+        aec_v_min = st.slider("Helligkeit Min (AEC)", 0, 255, st.session_state.aec_v_min, key="aec_v_min_slider")
+        aec_v_max = st.slider("Helligkeit Max (AEC)", 0, 255, st.session_state.aec_v_max, key="aec_v_max_slider")
     with col5:
         st.markdown("**Hämatoxylin (blau/lila)**")
-        st.session_state.hema_hue_min = st.slider("Hue Min (Hämatoxylin)", 0, 180, st.session_state.hema_hue_min, key="hema_hue_min")
-        st.session_state.hema_hue_max = st.slider("Hue Max (Hämatoxylin)", 0, 180, st.session_state.hema_hue_max, key="hema_hue_max")
-        st.session_state.hema_s_min = st.slider("Sättigung Min (Hämatoxylin)", 0, 255, st.session_state.hema_s_min, key="hema_s_min")
-        st.session_state.hema_s_max = st.slider("Sättigung Max (Hämatoxylin)", 0, 255, st.session_state.hema_s_max, key="hema_s_max")
-        st.session_state.hema_v_min = st.slider("Helligkeit Min (Hämatoxylin)", 0, 255, st.session_state.hema_v_min, key="hema_v_min")
-        st.session_state.hema_v_max = st.slider("Helligkeit Max (Hämatoxylin)", 0, 255, st.session_state.hema_v_max, key="hema_v_max")
+        hema_hue_min = st.slider("Hue Min (Hämatoxylin)", 0, 180, st.session_state.hema_hue_min, key="hema_hue_min_slider")
+        hema_hue_max = st.slider("Hue Max (Hämatoxylin)", 0, 180, st.session_state.hema_hue_max, key="hema_hue_max_slider")
+        hema_s_min = st.slider("Sättigung Min (Hämatoxylin)", 0, 255, st.session_state.hema_s_min, key="hema_s_min_slider")
+        hema_s_max = st.slider("Sättigung Max (Hämatoxylin)", 0, 255, st.session_state.hema_s_max, key="hema_s_max_slider")
+        hema_v_min = st.slider("Helligkeit Min (Hämatoxylin)", 0, 255, st.session_state.hema_v_min, key="hema_v_min_slider")
+        hema_v_max = st.slider("Helligkeit Max (Hämatoxylin)", 0, 255, st.session_state.hema_v_max, key="hema_v_max_slider")
+
+    # Werte speichern
+    st.session_state.aec_hue_min1 = aec_hue_min1
+    st.session_state.aec_hue_max1 = aec_hue_max1
+    st.session_state.aec_hue_min2 = aec_hue_min2
+    st.session_state.aec_hue_max2 = aec_hue_max2
+    st.session_state.aec_s_min = aec_s_min
+    st.session_state.aec_s_max = aec_s_max
+    st.session_state.aec_v_min = aec_v_min
+    st.session_state.aec_v_max = aec_v_max
+    st.session_state.hema_hue_min = hema_hue_min
+    st.session_state.hema_hue_max = hema_hue_max
+    st.session_state.hema_s_min = hema_s_min
+    st.session_state.hema_s_max = hema_s_max
+    st.session_state.hema_v_min = hema_v_min
+    st.session_state.hema_v_max = hema_v_max
 
     # -------------------- Checkbox-Modi --------------------
     colA, colB = st.columns(2)
