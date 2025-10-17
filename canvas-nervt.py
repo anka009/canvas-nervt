@@ -55,7 +55,7 @@ if uploaded_file:
     # -------------------- Bildbreite-Slider --------------------
     colW1, colW2 = st.columns([2,1])
     with colW1:
-        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, st.session_state.disp_width, step=100)
+        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, st.session_state.disp_width, step=100, key="disp_width_slider")
         st.session_state.disp_width = DISPLAY_WIDTH
     with colW2:
         st.write("Breite anpassen")
@@ -71,42 +71,42 @@ if uploaded_file:
     st.markdown("### ⚙️ Filter- und Erkennungsparameter")
     col1, col2, col3 = st.columns(3)
     with col1:
-        blur_kernel = st.slider("🔧 Blur", 1, 21, 5, step=2)
-        min_area = st.number_input("📏 Mindestfläche", 10, 2000, 100)
+        blur_kernel = st.slider("🔧 Blur", 1, 21, 5, step=2, key="blur_slider")
+        min_area = st.number_input("📏 Mindestfläche", 10, 2000, 100, key="min_area_input")
     with col2:
-        alpha = st.slider("🌗 Alpha", 0.1, 3.0, 1.0, step=0.1)
+        alpha = st.slider("🌗 Alpha", 0.1, 3.0, 1.0, step=0.1, key="alpha_slider")
     with col3:
-        circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
-        line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
+        circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8, key="circle_slider")
+        line_thickness = st.slider("📏 Linienstärke", 1, 5, 2, key="thickness_slider")
 
     # -------------------- Slider für AEC/Hämatoxylin --------------------
     st.markdown("### 🎨 Farbfilter")
     col4, col5 = st.columns(2)
     with col4:
         st.markdown("**AEC (rot/braun)**")
-        st.session_state.aec_hue_min1 = st.slider("Hue Min1", 0, 180, st.session_state.aec_hue_min1)
-        st.session_state.aec_hue_max1 = st.slider("Hue Max1", 0, 180, st.session_state.aec_hue_max1)
-        st.session_state.aec_hue_min2 = st.slider("Hue Min2", 0, 180, st.session_state.aec_hue_min2)
-        st.session_state.aec_hue_max2 = st.slider("Hue Max2", 0, 180, st.session_state.aec_hue_max2)
-        st.session_state.aec_s_min = st.slider("Sättigung Min", 0, 255, st.session_state.aec_s_min)
-        st.session_state.aec_s_max = st.slider("Sättigung Max", 0, 255, st.session_state.aec_s_max)
-        st.session_state.aec_v_min = st.slider("Helligkeit Min", 0, 255, st.session_state.aec_v_min)
-        st.session_state.aec_v_max = st.slider("Helligkeit Max", 0, 255, st.session_state.aec_v_max)
+        st.session_state.aec_hue_min1 = st.slider("Hue Min1 (AEC)", 0, 180, st.session_state.aec_hue_min1, key="aec_hue_min1")
+        st.session_state.aec_hue_max1 = st.slider("Hue Max1 (AEC)", 0, 180, st.session_state.aec_hue_max1, key="aec_hue_max1")
+        st.session_state.aec_hue_min2 = st.slider("Hue Min2 (AEC)", 0, 180, st.session_state.aec_hue_min2, key="aec_hue_min2")
+        st.session_state.aec_hue_max2 = st.slider("Hue Max2 (AEC)", 0, 180, st.session_state.aec_hue_max2, key="aec_hue_max2")
+        st.session_state.aec_s_min = st.slider("Sättigung Min (AEC)", 0, 255, st.session_state.aec_s_min, key="aec_s_min")
+        st.session_state.aec_s_max = st.slider("Sättigung Max (AEC)", 0, 255, st.session_state.aec_s_max, key="aec_s_max")
+        st.session_state.aec_v_min = st.slider("Helligkeit Min (AEC)", 0, 255, st.session_state.aec_v_min, key="aec_v_min")
+        st.session_state.aec_v_max = st.slider("Helligkeit Max (AEC)", 0, 255, st.session_state.aec_v_max, key="aec_v_max")
     with col5:
         st.markdown("**Hämatoxylin (blau/lila)**")
-        st.session_state.hema_hue_min = st.slider("Hue Min", 0, 180, st.session_state.hema_hue_min)
-        st.session_state.hema_hue_max = st.slider("Hue Max", 0, 180, st.session_state.hema_hue_max)
-        st.session_state.hema_s_min = st.slider("Sättigung Min", 0, 255, st.session_state.hema_s_min)
-        st.session_state.hema_s_max = st.slider("Sättigung Max", 0, 255, st.session_state.hema_s_max)
-        st.session_state.hema_v_min = st.slider("Helligkeit Min", 0, 255, st.session_state.hema_v_min)
-        st.session_state.hema_v_max = st.slider("Helligkeit Max", 0, 255, st.session_state.hema_v_max)
+        st.session_state.hema_hue_min = st.slider("Hue Min (Hämatoxylin)", 0, 180, st.session_state.hema_hue_min, key="hema_hue_min")
+        st.session_state.hema_hue_max = st.slider("Hue Max (Hämatoxylin)", 0, 180, st.session_state.hema_hue_max, key="hema_hue_max")
+        st.session_state.hema_s_min = st.slider("Sättigung Min (Hämatoxylin)", 0, 255, st.session_state.hema_s_min, key="hema_s_min")
+        st.session_state.hema_s_max = st.slider("Sättigung Max (Hämatoxylin)", 0, 255, st.session_state.hema_s_max, key="hema_s_max")
+        st.session_state.hema_v_min = st.slider("Helligkeit Min (Hämatoxylin)", 0, 255, st.session_state.hema_v_min, key="hema_v_min")
+        st.session_state.hema_v_max = st.slider("Helligkeit Max (Hämatoxylin)", 0, 255, st.session_state.hema_v_max, key="hema_v_max")
 
     # -------------------- Checkbox-Modi --------------------
-    colA, colB, colC = st.columns(3)
+    colA, colB = st.columns(2)
     with colA:
-        st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
+        st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren", key="delete_mode_cb")
     with colB:
-        bg_mode = st.checkbox("🖌 Hintergrund markieren")
+        bg_mode = st.checkbox("🖌 Hintergrund markieren", key="bg_mode_cb")
 
     # -------------------- Bildanzeige --------------------
     marked_disp = image_disp.copy()
@@ -170,3 +170,13 @@ if uploaded_file:
         mask_aec = cv2.bitwise_and(mask_aec, mask_aec, mask=mask_fg)
         mask_aec = cv2.morphologyEx(mask_aec, cv2.MORPH_OPEN, kernel, iterations=1)
         st.session_state.aec_points = get_centers(mask_aec, min_area)
+
+        # Hämatoxylin
+        lower_hema = np.array([st.session_state.hema_hue_min, st.session_state.hema_s_min, st.session_state.hema_v_min])
+        upper_hema = np.array([st.session_state.hema_hue_max, st.session_state.hema_s_max, st.session_state.hema_v_max])
+        mask_hema = cv2.inRange(hsv_proc, lower_hema, upper_hema)
+        mask_hema = cv2.bitwise_and(mask_hema, mask_hema, mask=mask_fg)
+        mask_hema = cv2.morphologyEx(mask_hema, cv2.MORPH_OPEN, kernel, iterations=1)
+        st.session_state.hema_points = get_centers(mask_hema, min_area)
+
+        st.success(f"✅ {len(st.session_state.a
