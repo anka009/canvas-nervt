@@ -28,11 +28,12 @@ st.title("🧬 Interaktiver Zellkern-Zähler")
 # -------------------- Session State --------------------
 keys_defaults = {
     "aec_points": [], "hema_points": [], "manual_points": [],
-    "delete_mode": False, "last_file": None, "disp_width": 1400,
+    "bg_points": [], "delete_mode": False, "last_file": None, "disp_width": 1400,
+    # AEC Hue/S/V
     "aec_hue_min1": 0, "aec_hue_max1": 10, "aec_hue_min2": 170, "aec_hue_max2": 180,
     "aec_s_min":50, "aec_s_max":255, "aec_v_min":50, "aec_v_max":200,
-    "hema_hue_min":100, "hema_hue_max":140, "hema_s_min":50, "hema_s_max":255, "hema_v_min":50, "hema_v_max":200,
-    "bg_points": []
+    # Hämatoxylin Hue/S/V
+    "hema_hue_min":100, "hema_hue_max":140, "hema_s_min":50, "hema_s_max":255, "hema_v_min":50, "hema_v_max":200
 }
 for k,v in keys_defaults.items():
     if k not in st.session_state:
@@ -51,16 +52,23 @@ if uploaded_file:
         st.session_state.last_file = uploaded_file.name
         st.session_state.disp_width = 1400
 
+    # -------------------- Bildbreite-Slider --------------------
+    colW1, colW2 = st.columns([2,1])
+    with colW1:
+        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, st.session_state.disp_width, step=100)
+        st.session_state.disp_width = DISPLAY_WIDTH
+    with colW2:
+        st.write("Breite anpassen")
+
     # -------------------- Bild vorbereiten --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
     H_orig, W_orig = image_orig.shape[:2]
-
-    scale = st.session_state.disp_width / W_orig
-    image_disp = cv2.resize(image_orig, (st.session_state.disp_width, int(H_orig*scale)), interpolation=cv2.INTER_AREA)
-
+    scale = DISPLAY_WIDTH / W_orig
+    image_disp = cv2.resize(image_orig, (DISPLAY_WIDTH, int(H_orig*scale)), interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(image_disp, cv2.COLOR_RGB2HSV)
 
-    # -------------------- Slider --------------------
+    # -------------------- Slider für Parameter --------------------
+    st.markdown("### ⚙️ Filter- und Erkennungsparameter")
     col1, col2, col3 = st.columns(3)
     with col1:
         blur_kernel = st.slider("🔧 Blur", 1, 21, 5, step=2)
@@ -71,6 +79,28 @@ if uploaded_file:
         circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
         line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
 
+    # -------------------- Slider für AEC/Hämatoxylin --------------------
+    st.markdown("### 🎨 Farbfilter")
+    col4, col5 = st.columns(2)
+    with col4:
+        st.markdown("**AEC (rot/braun)**")
+        st.session_state.aec_hue_min1 = st.slider("Hue Min1", 0, 180, st.session_state.aec_hue_min1)
+        st.session_state.aec_hue_max1 = st.slider("Hue Max1", 0, 180, st.session_state.aec_hue_max1)
+        st.session_state.aec_hue_min2 = st.slider("Hue Min2", 0, 180, st.session_state.aec_hue_min2)
+        st.session_state.aec_hue_max2 = st.slider("Hue Max2", 0, 180, st.session_state.aec_hue_max2)
+        st.session_state.aec_s_min = st.slider("Sättigung Min", 0, 255, st.session_state.aec_s_min)
+        st.session_state.aec_s_max = st.slider("Sättigung Max", 0, 255, st.session_state.aec_s_max)
+        st.session_state.aec_v_min = st.slider("Helligkeit Min", 0, 255, st.session_state.aec_v_min)
+        st.session_state.aec_v_max = st.slider("Helligkeit Max", 0, 255, st.session_state.aec_v_max)
+    with col5:
+        st.markdown("**Hämatoxylin (blau/lila)**")
+        st.session_state.hema_hue_min = st.slider("Hue Min", 0, 180, st.session_state.hema_hue_min)
+        st.session_state.hema_hue_max = st.slider("Hue Max", 0, 180, st.session_state.hema_hue_max)
+        st.session_state.hema_s_min = st.slider("Sättigung Min", 0, 255, st.session_state.hema_s_min)
+        st.session_state.hema_s_max = st.slider("Sättigung Max", 0, 255, st.session_state.hema_s_max)
+        st.session_state.hema_v_min = st.slider("Helligkeit Min", 0, 255, st.session_state.hema_v_min)
+        st.session_state.hema_v_max = st.slider("Helligkeit Max", 0, 255, st.session_state.hema_v_max)
+
     # -------------------- Checkbox-Modi --------------------
     colA, colB, colC = st.columns(3)
     with colA:
@@ -78,22 +108,18 @@ if uploaded_file:
     with colB:
         bg_mode = st.checkbox("🖌 Hintergrund markieren")
 
-    # -------------------- Bild mit Klicks anzeigen --------------------
+    # -------------------- Bildanzeige --------------------
     marked_disp = image_disp.copy()
-    # AEC-Kerne (rot)
     for (x,y) in st.session_state.aec_points:
         cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)
-    # Hämatoxylin-Kerne (blau)
     for (x,y) in st.session_state.hema_points:
         cv2.circle(marked_disp, (x,y), circle_radius, (0,0,255), line_thickness)
-    # Manuelle Punkte (grün)
     for (x,y) in st.session_state.manual_points:
         cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)
-    # Hintergrundpunkte (gelb)
     for (x,y) in st.session_state.bg_points:
         cv2.circle(marked_disp, (x,y), circle_radius, (255,255,0), line_thickness)
 
-    coords = streamlit_image_coordinates(Image.fromarray(marked_disp), key="clickable_image", width=st.session_state.disp_width)
+    coords = streamlit_image_coordinates(Image.fromarray(marked_disp), key="clickable_image", width=DISPLAY_WIDTH)
 
     # -------------------- Klick-Logik --------------------
     if coords is not None:
@@ -101,6 +127,7 @@ if uploaded_file:
         if bg_mode:
             st.session_state.bg_points.append((x,y))
         elif st.session_state.delete_mode:
+            st.session_state.bg_points = [p for p in st.session_state.bg_points if not is_near(p,(x,y),r=circle_radius)]
             st.session_state.aec_points = [p for p in st.session_state.aec_points if not is_near(p,(x,y),r=circle_radius)]
             st.session_state.hema_points = [p for p in st.session_state.hema_points if not is_near(p,(x,y),r=circle_radius)]
             st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p,(x,y),r=circle_radius)]
@@ -114,7 +141,7 @@ if uploaded_file:
             proc = cv2.GaussianBlur(proc,(blur_kernel,blur_kernel),0)
         hsv_proc = cv2.cvtColor(proc, cv2.COLOR_RGB2HSV)
 
-        # -------------------- Hintergrundmaske --------------------
+        # Hintergrundmaske
         if st.session_state.bg_points:
             mask_bg = np.zeros(image_disp.shape[:2], dtype=np.uint8)
             for (x,y) in st.session_state.bg_points:
@@ -132,45 +159,10 @@ if uploaded_file:
 
         kernel = np.ones((3,3),np.uint8)
 
-        # -------------------- AEC --------------------
+        # AEC
         lower1 = np.array([st.session_state.aec_hue_min1, st.session_state.aec_s_min, st.session_state.aec_v_min])
         upper1 = np.array([st.session_state.aec_hue_max1, st.session_state.aec_s_max, st.session_state.aec_v_max])
         lower2 = np.array([st.session_state.aec_hue_min2, st.session_state.aec_s_min, st.session_state.aec_v_min])
         upper2 = np.array([st.session_state.aec_hue_max2, st.session_state.aec_s_max, st.session_state.aec_v_max])
         mask_aec1 = cv2.inRange(hsv_proc, lower1, upper1)
-        mask_aec2 = cv2.inRange(hsv_proc, lower2, upper2)
-        mask_aec = cv2.bitwise_or(mask_aec1, mask_aec2)
-        mask_aec = cv2.bitwise_and(mask_aec, mask_aec, mask=mask_fg)
-        mask_aec = cv2.morphologyEx(mask_aec, cv2.MORPH_OPEN, kernel, iterations=1)
-        st.session_state.aec_points = get_centers(mask_aec, min_area)
-
-        # -------------------- Hämatoxylin --------------------
-        lower_hema = np.array([st.session_state.hema_hue_min, st.session_state.hema_s_min, st.session_state.hema_v_min])
-        upper_hema = np.array([st.session_state.hema_hue_max, st.session_state.hema_s_max, st.session_state.hema_v_max])
-        mask_hema = cv2.inRange(hsv_proc, lower_hema, upper_hema)
-        mask_hema = cv2.bitwise_and(mask_hema, mask_hema, mask=mask_fg)
-        mask_hema = cv2.morphologyEx(mask_hema, cv2.MORPH_OPEN, kernel, iterations=1)
-        st.session_state.hema_points = get_centers(mask_hema, min_area)
-
-        st.success(f"✅ {len(st.session_state.aec_points)} AEC-Kerne, {len(st.session_state.hema_points)} Hämatoxylin-Kerne erkannt.")
-
-    # -------------------- Reset Auto-Erkennung --------------------
-    if st.button("🧹 Auto-Erkennung zurücksetzen"):
-        st.session_state.aec_points = []
-        st.session_state.hema_points = []
-        st.info("Automatische Punkte gelöscht.")
-
-    # -------------------- Gesamtanzahl --------------------
-    all_points = st.session_state.aec_points + st.session_state.hema_points + st.session_state.manual_points
-    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
-
-    # -------------------- CSV Export --------------------
-    df = pd.DataFrame(all_points, columns=["X_display","Y_display"])
-    if not df.empty:
-        df["X_original"] = (df["X_display"]/scale).round().astype("Int64")
-        df["Y_original"] = (df["Y_display"]/scale).round().astype("Int64")
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
-    else:
-        st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
-
+        mask_aec2 = cv2.inRange(hsv_proc, lower2, upp
