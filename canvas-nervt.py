@@ -40,7 +40,7 @@ if uploaded_file:
         st.session_state.disp_width = DISPLAY_WIDTH
     with colW2:
         if st.button("🖥️ Maximale Monitorbreite"):
-            st.session_state.disp_width = 9999  # sehr groß, passt automatisch auf Spaltenbreite
+            st.session_state.disp_width = 2000  # sehr groß, passt automatisch auf Spaltenbreite
             DISPLAY_WIDTH = st.session_state.disp_width
 
     use_full_width = True if DISPLAY_WIDTH >= 9999 else False  # für Image-Anzeige
