@@ -32,7 +32,7 @@ if uploaded_file:
         st.session_state.last_file = uploaded_file.name
 
     # -------------------- Bildgröße einstellen --------------------
-    colW1, colW2 = st.columns([2,1])
+    colW1, colW2 = st.columns([2, 1])
     with colW1:
         DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100, key="disp_width")
     with colW2:
@@ -65,31 +65,40 @@ if uploaded_file:
         circle_radius = st.slider("⚪ Kreisradius", 3, 20, st.session_state.get("circle_radius", 8), key="circle_radius")
         line_thickness = st.slider("📏 Linienstärke", 1, 5, st.session_state.get("line_thickness", 2), key="line_thickness")
 
-    # -------------------- Auto-Erkennung läuft automatisch --------------------
-    proc = cv2.convertScaleAbs(gray_disp, alpha=alpha, beta=0)
-    if blur_kernel > 1:
-        proc = cv2.GaussianBlur(proc, (blur_kernel, blur_kernel), 0)
-    if thresh_val == 0:
-        otsu_thresh, _ = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    else:
-        otsu_thresh = thresh_val
-    _, mask = cv2.threshold(proc, otsu_thresh, 255, cv2.THRESH_BINARY)
-    if np.mean(proc[mask == 255]) > np.mean(proc[mask == 0]):
-        mask = cv2.bitwise_not(mask)
-    kernel = np.ones((3, 3), np.uint8)
-    clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
-    contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # -------------------- Auto-Erkennung nur bei Button-Klick --------------------
+    colA, colB = st.columns([1, 1])
+    with colA:
+        if st.button("🤖 Auto-Erkennung starten"):
+            proc = cv2.convertScaleAbs(gray_disp, alpha=alpha, beta=0)
+            if blur_kernel > 1:
+                proc = cv2.GaussianBlur(proc, (blur_kernel, blur_kernel), 0)
+            if thresh_val == 0:
+                otsu_thresh, _ = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            else:
+                otsu_thresh = thresh_val
+            _, mask = cv2.threshold(proc, otsu_thresh, 255, cv2.THRESH_BINARY)
+            if np.mean(proc[mask == 255]) > np.mean(proc[mask == 0]):
+                mask = cv2.bitwise_not(mask)
+            kernel = np.ones((3, 3), np.uint8)
+            clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
+            contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    detected = []
-    for c in contours:
-        if cv2.contourArea(c) >= min_area:
-            M = cv2.moments(c)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                detected.append((cx, cy))
+            detected = []
+            for c in contours:
+                if cv2.contourArea(c) >= min_area:
+                    M = cv2.moments(c)
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        detected.append((cx, cy))
 
-    st.session_state.auto_points = detected
+            st.session_state.auto_points = detected
+            st.success(f"✅ {len(detected)} Kerne automatisch erkannt.")
+
+    with colB:
+        if st.button("🧹 Auto-Erkennung zurücksetzen"):
+            st.session_state.auto_points = []
+            st.info("Automatische Punkte gelöscht.")
 
     # -------------------- Ausgabe: Kerneanzahl über dem Bild --------------------
     all_points = st.session_state.auto_points + st.session_state.manual_points
@@ -97,10 +106,10 @@ if uploaded_file:
 
     # -------------------- Bild mit Punkten --------------------
     marked_disp = image_disp.copy()
-    for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)   # rot = automatisch
-    for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)   # grün = manuell
+    for (x, y) in st.session_state.auto_points:
+        cv2.circle(marked_disp, (x, y), circle_radius, (255, 0, 0), line_thickness)  # rot = automatisch
+    for (x, y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x, y), circle_radius, (0, 255, 0), line_thickness)  # grün = manuell
 
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_disp),
@@ -112,10 +121,10 @@ if uploaded_file:
     if coords is not None:
         x, y = coords["x"], coords["y"]
         if st.session_state.delete_mode:
-            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x,y), r=circle_radius)]
-            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=circle_radius)]
+            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x, y), r=circle_radius)]
+            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x, y), r=circle_radius)]
         else:
-            st.session_state.manual_points.append((x,y))
+            st.session_state.manual_points.append((x, y))
 
     # -------------------- Steuerung --------------------
     st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
