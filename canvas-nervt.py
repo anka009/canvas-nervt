@@ -12,12 +12,10 @@ st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
 st.title("🧬 Interaktiver Zellkern-Zähler")
 
 # -------------------- Session State --------------------
-for key in ["auto_points", "manual_points", "delete_mode", "last_file", "full_screen", "disp_width"]:
+for key in ["auto_points", "manual_points", "delete_mode", "last_file", "disp_width"]:
     if key not in st.session_state:
         if key == "disp_width":
             st.session_state[key] = 1400
-        elif key == "full_screen":
-            st.session_state[key] = False
         else:
             st.session_state[key] = [] if "points" in key else False if key=="delete_mode" else None
 
@@ -30,24 +28,18 @@ if uploaded_file:
         st.session_state.manual_points = []
         st.session_state.delete_mode = False
         st.session_state.last_file = uploaded_file.name
-        st.session_state.full_screen = False
         st.session_state.disp_width = 1400
 
-  
-    # Slider für Bildbreite
-DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1400, step=50, key="disp_width")
+    # -------------------- Bildbreite einstellen --------------------
+    DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, st.session_state.disp_width, step=50, key="disp_width_slider")
+    st.session_state.disp_width = DISPLAY_WIDTH
 
-  
     # -------------------- Bild vorbereiten --------------------
-        image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
-        H_orig, W_orig = image_orig.shape[:2]
+    image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
+    H_orig, W_orig = image_orig.shape[:2]
 
-    if use_full_width:
-        image_disp = image_orig.copy()
-    else:
-        scale = DISPLAY_WIDTH / W_orig
-        image_disp = cv2.resize(image_orig, (DISPLAY_WIDTH, int(H_orig * scale)), interpolation=cv2.INTER_AREA)
-
+    scale = DISPLAY_WIDTH / W_orig
+    image_disp = cv2.resize(image_orig, (DISPLAY_WIDTH, int(H_orig * scale)), interpolation=cv2.INTER_AREA)
     gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
 
     # -------------------- Regler --------------------
@@ -111,7 +103,7 @@ DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1400, step=50, key="disp
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_disp),
         key="clickable_image",
-        width=None if use_full_width else DISPLAY_WIDTH
+        width=DISPLAY_WIDTH
     )
 
     # -------------------- Klick-Logik --------------------
@@ -131,8 +123,8 @@ DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1400, step=50, key="disp
     if not df.empty:
         df["X_display"] = pd.to_numeric(df["X_display"], errors="coerce")
         df["Y_display"] = pd.to_numeric(df["Y_display"], errors="coerce")
-        df["X_original"] = (df["X_display"] / (DISPLAY_WIDTH / W_orig)).round().astype("Int64")
-        df["Y_original"] = (df["Y_display"] / (DISPLAY_WIDTH / W_orig)).round().astype("Int64")
+        df["X_original"] = (df["X_display"] / scale).round().astype("Int64")
+        df["Y_original"] = (df["Y_display"] / scale).round().astype("Int64")
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
     else:
