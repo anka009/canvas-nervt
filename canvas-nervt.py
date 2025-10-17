@@ -1,6 +1,7 @@
 import streamlit as st
 import cv2
 import numpy as np
+import pandas as pd
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
 
@@ -8,7 +9,11 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
 
-# Session State initialisieren
+# Streamlit Setup
+st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
+st.title("🧬 Interaktiver Zellkern-Zähler")
+
+# Session State
 for key in ["auto_points", "manual_points", "delete_mode", "last_file"]:
     if key not in st.session_state:
         st.session_state[key] = [] if "points" in key else False
@@ -28,7 +33,7 @@ if uploaded_file:
     # Anzeigegröße
     colW1, colW2 = st.columns([2,1])
     with colW1:
-        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100)
+        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100, key="disp_width")
     with colW2:
         use_full_width = st.checkbox("🔲 Volle Breite nutzen", value=False)
 
@@ -38,28 +43,31 @@ if uploaded_file:
 
     # Parameter-Tuner AEC
     with st.expander("🔴 AEC-Parameter"):
-        aec_hue = st.slider("Hue", 0, 30, 15)
-        aec_sat = st.slider("Sättigung", 50, 255, 100)
-        aec_val = st.slider("Helligkeit", 50, 255, 100)
-        aec_area = st.slider("Minimale Fläche", 10, 1000, 100)
-        if st.button("🔍 AEC-Kerne erkennen"):
+        aec_hue = st.slider("Hue", 0, 30, 15, key="aec_hue")
+        aec_sat = st.slider("Sättigung", 50, 255, 100, key="aec_sat")
+        aec_val = st.slider("Helligkeit", 50, 255, 100, key="aec_val")
+        aec_area = st.slider("Minimale Fläche", 10, 1000, 100, key="aec_area")
+        if st.button("🔍 AEC-Kerne erkennen", key="detect_aec"):
             st.session_state.auto_points = detect_custom(image_disp, aec_hue, aec_sat, aec_val, aec_area)
 
     # Parameter-Tuner Hämalaun
     with st.expander("🔵 Hämalaun-Parameter"):
-        haem_hue = st.slider("Hue", 100, 160, 130)
-        haem_sat = st.slider("Sättigung", 50, 255, 100)
-        haem_val = st.slider("Helligkeit", 50, 255, 100)
-        haem_area = st.slider("Minimale Fläche", 10, 1000, 100)
-        if st.button("🔍 Hämalaun-Kerne erkennen"):
+        haem_hue = st.slider("Hue", 100, 160, 130, key="haem_hue")
+        haem_sat = st.slider("Sättigung", 50, 255, 100, key="haem_sat")
+        haem_val = st.slider("Helligkeit", 50, 255, 100, key="haem_val")
+        haem_area = st.slider("Minimale Fläche", 10, 1000, 100, key="haem_area")
+        if st.button("🔍 Hämalaun-Kerne erkennen", key="detect_haem"):
             st.session_state.auto_points = detect_custom(image_disp, haem_hue, haem_sat, haem_val, haem_area)
 
-    # Bildanzeige mit Punkten
+    # Anzeige der Punkte
+    circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8, key="circle_radius")
+    line_thickness = st.slider("📏 Linienstärke", 1, 5, 2, key="line_thickness")
+
     marked_disp = image_disp.copy()
     for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)
+        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)
     for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)
+        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)
 
     coords = streamlit_image_coordinates(Image.fromarray(marked_disp), key="clickable_image", width=None if use_full_width else DISPLAY_WIDTH)
 
@@ -67,8 +75,8 @@ if uploaded_file:
     if coords is not None:
         x, y = coords["x"], coords["y"]
         if st.session_state.delete_mode:
-            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x,y), r=8)]
-            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=8)]
+            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x,y), r=circle_radius)]
+            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=circle_radius)]
         else:
             st.session_state.manual_points.append((x,y))
 
@@ -79,12 +87,24 @@ if uploaded_file:
     all_points = st.session_state.auto_points + st.session_state.manual_points
     st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
-# Erkennungsfunktion
+    # CSV Export
+    df = pd.DataFrame(all_points, columns=["X_display", "Y_display"])
+    if not df.empty:
+        df["X_original"] = (df["X_display"] / scale).round().astype("Int64")
+        df["Y_original"] = (df["Y_display"] / scale).round().astype("Int64")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
+    else:
+        st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
+
+# Erkennungsfunktion mit Maskenvorschau
 def detect_custom(image, hue, sat, val, min_area):
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     lower = np.array([hue - 10, sat, val])
     upper = np.array([hue + 10, 255, 255])
     mask = cv2.inRange(hsv, lower, upper)
+    st.image(mask, caption="🧪 Vorschau der Farbmaske", use_column_width=True)
+
     kernel = np.ones((3, 3), np.uint8)
     clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
     contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
