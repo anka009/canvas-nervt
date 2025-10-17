@@ -158,4 +158,25 @@ if uploaded_file:
 
     # -------------------- Bild mit Punkten --------------------
     marked_disp = image_disp.copy()
-    for (x,y)
+    # AEC-Kerne (rot)
+    for (x,y) in st.session_state.aec_points:
+        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)
+    # Hämatoxylin-Kerne (blau)
+    for (x,y) in st.session_state.hema_points:
+        cv2.circle(marked_disp, (x,y), circle_radius, (0,0,255), line_thickness)
+    # Manuelle Punkte (grün)
+    for (x,y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)
+
+    coords = streamlit_image_coordinates(
+        Image.fromarray(marked_disp),
+        key="clickable_image",
+        width=st.session_state.disp_width
+    )
+
+    # -------------------- Klick-Logik --------------------
+    if coords is not None:
+        x, y = coords["x"], coords["y"]
+        if st.session_state.delete_mode:
+            st.session_state.aec_points = [p for p in st.session_state.aec_points if not is_near(p,(x,y),r=circle_radius)]
+            st.session_state.hema_points
