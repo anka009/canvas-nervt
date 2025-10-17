@@ -165,4 +165,8 @@ if uploaded_file:
         lower2 = np.array([st.session_state.aec_hue_min2, st.session_state.aec_s_min, st.session_state.aec_v_min])
         upper2 = np.array([st.session_state.aec_hue_max2, st.session_state.aec_s_max, st.session_state.aec_v_max])
         mask_aec1 = cv2.inRange(hsv_proc, lower1, upper1)
-        mask_aec2 = cv2.inRange(hsv_proc, lower2, upp
+        mask_aec2 = cv2.inRange(hsv_proc, lower2, upper2)
+        mask_aec = cv2.bitwise_or(mask_aec1, mask_aec2)
+        mask_aec = cv2.bitwise_and(mask_aec, mask_aec, mask=mask_fg)
+        mask_aec = cv2.morphologyEx(mask_aec, cv2.MORPH_OPEN, kernel, iterations=1)
+        st.session_state.aec_points = get_centers(mask_aec, min_area)
