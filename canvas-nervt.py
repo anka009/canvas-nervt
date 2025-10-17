@@ -8,23 +8,36 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
 
+def get_centers(mask, min_area=50):
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    centers = []
+    for c in contours:
+        if cv2.contourArea(c) >= min_area:
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                cx = int(M["m10"]/M["m00"])
+                cy = int(M["m01"]/M["m00"])
+                centers.append((cx,cy))
+    return centers
+
 st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
 st.title("🧬 Interaktiver Zellkern-Zähler")
 
 # -------------------- Session State --------------------
-for key in ["auto_points", "manual_points", "delete_mode", "last_file", "disp_width"]:
+for key in ["aec_points", "hema_points", "manual_points", "delete_mode", "last_file", "disp_width"]:
     if key not in st.session_state:
         if key == "disp_width":
             st.session_state[key] = 1400
         else:
             st.session_state[key] = [] if "points" in key else False if key=="delete_mode" else None
 
-uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
+uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg","png","tif","tiff","jpeg"])
 
 if uploaded_file:
     # Reset bei neuem Bild
     if uploaded_file.name != st.session_state.last_file:
-        st.session_state.auto_points = []
+        st.session_state.aec_points = []
+        st.session_state.hema_points = []
         st.session_state.manual_points = []
         st.session_state.delete_mode = False
         st.session_state.last_file = uploaded_file.name
@@ -40,65 +53,69 @@ if uploaded_file:
 
     scale = DISPLAY_WIDTH / W_orig
     image_disp = cv2.resize(image_orig, (DISPLAY_WIDTH, int(H_orig * scale)), interpolation=cv2.INTER_AREA)
-    gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
 
     # -------------------- Regler --------------------
     col1, col2, col3 = st.columns(3)
     with col1:
-        blur_kernel = st.slider("🔧 Blur", 1, 21, st.session_state.get("blur_kernel", 5), step=2, key="blur_kernel")
-        min_area = st.number_input("📏 Mindestfläche", 10, 2000, st.session_state.get("min_area", 100), key="min_area")
+        blur_kernel = st.slider("🔧 Blur", 1, 21, 5, step=2, key="blur_kernel")
+        min_area = st.number_input("📏 Mindestfläche", 10, 2000, 100, key="min_area")
     with col2:
-        thresh_val = st.slider("🎚️ Threshold (0 = Otsu)", 0, 255, st.session_state.get("thresh_val", 0), key="thresh_val")
-        alpha = st.slider("🌗 Alpha", 0.1, 3.0, st.session_state.get("alpha", 1.0), step=0.1, key="alpha")
+        # Hue-Bereiche für die beiden Farbtöne
+        aec_hue_min = st.slider("AEC Hue min", 0, 20, 0)
+        aec_hue_max = st.slider("AEC Hue max", 0, 20, 20)
+        hema_hue_min = st.slider("Hämatoxylin Hue min", 90, 140, 100)
+        hema_hue_max = st.slider("Hämatoxylin Hue max", 90, 140, 140)
+        alpha = st.slider("🌗 Alpha", 0.1, 3.0, 1.0, step=0.1)
     with col3:
-        circle_radius = st.slider("⚪ Kreisradius", 3, 20, st.session_state.get("circle_radius", 8), key="circle_radius")
-        line_thickness = st.slider("📏 Linienstärke", 1, 5, st.session_state.get("line_thickness", 2), key="line_thickness")
+        circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
+        line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
 
-    # -------------------- Auto-Erkennung nur bei Button-Klick --------------------
+    # -------------------- Auto-Erkennung --------------------
     colA, colB = st.columns([1,1])
     with colA:
         if st.button("🤖 Auto-Erkennung starten"):
-            proc = cv2.convertScaleAbs(gray_disp, alpha=alpha, beta=0)
+            # Auf Bildkopie für Verarbeitung (evtl. verkleinern, wenn groß)
+            proc = cv2.convertScaleAbs(image_disp, alpha=alpha, beta=0)
             if blur_kernel > 1:
                 proc = cv2.GaussianBlur(proc, (blur_kernel, blur_kernel), 0)
-            if thresh_val == 0:
-                otsu_thresh, _ = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            else:
-                otsu_thresh = thresh_val
-            _, mask = cv2.threshold(proc, otsu_thresh, 255, cv2.THRESH_BINARY)
-            if np.mean(proc[mask == 255]) > np.mean(proc[mask == 0]):
-                mask = cv2.bitwise_not(mask)
+            
+            hsv = cv2.cvtColor(proc, cv2.COLOR_RGB2HSV)
+
+            # AEC rot/braun
+            lower_aec = np.array([aec_hue_min, 50, 50])
+            upper_aec = np.array([aec_hue_max, 255, 255])
+            mask_aec = cv2.inRange(hsv, lower_aec, upper_aec)
             kernel = np.ones((3,3), np.uint8)
-            clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
-            contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            mask_aec = cv2.morphologyEx(mask_aec, cv2.MORPH_OPEN, kernel, iterations=1)
+            st.session_state.aec_points = get_centers(mask_aec, min_area)
 
-            detected = []
-            for c in contours:
-                if cv2.contourArea(c) >= min_area:
-                    M = cv2.moments(c)
-                    if M["m00"] != 0:
-                        cx = int(M["m10"] / M["m00"])
-                        cy = int(M["m01"] / M["m00"])
-                        detected.append((cx, cy))
+            # Hämatoxylin blau/lila
+            lower_hema = np.array([hema_hue_min, 50, 50])
+            upper_hema = np.array([hema_hue_max, 255, 255])
+            mask_hema = cv2.inRange(hsv, lower_hema, upper_hema)
+            mask_hema = cv2.morphologyEx(mask_hema, cv2.MORPH_OPEN, kernel, iterations=1)
+            st.session_state.hema_points = get_centers(mask_hema, min_area)
 
-            st.session_state.auto_points = detected
-            st.success(f"✅ {len(detected)} Kerne automatisch erkannt.")
+            st.success(f"✅ {len(st.session_state.aec_points)} AEC-Kerne, {len(st.session_state.hema_points)} Hämatoxylin-Kerne erkannt.")
 
     with colB:
         if st.button("🧹 Auto-Erkennung zurücksetzen"):
-            st.session_state.auto_points = []
+            st.session_state.aec_points = []
+            st.session_state.hema_points = []
             st.info("Automatische Punkte gelöscht.")
 
-    # -------------------- Ausgabe: Kerneanzahl --------------------
-    all_points = st.session_state.auto_points + st.session_state.manual_points
+    # -------------------- Ausgabe: Gesamtzahl --------------------
+    all_points = st.session_state.aec_points + st.session_state.hema_points + st.session_state.manual_points
     st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
 
     # -------------------- Bild mit Punkten --------------------
     marked_disp = image_disp.copy()
-    for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)
+    for (x,y) in st.session_state.aec_points:
+        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)  # rot = AEC
+    for (x,y) in st.session_state.hema_points:
+        cv2.circle(marked_disp, (x,y), circle_radius, (0,0,255), line_thickness)  # blau = Hämatoxylin
     for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)
+        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)  # grün = manuell
 
     coords = streamlit_image_coordinates(
         Image.fromarray(marked_disp),
@@ -110,7 +127,8 @@ if uploaded_file:
     if coords is not None:
         x, y = coords["x"], coords["y"]
         if st.session_state.delete_mode:
-            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p,(x,y), r=circle_radius)]
+            st.session_state.aec_points = [p for p in st.session_state.aec_points if not is_near(p,(x,y), r=circle_radius)]
+            st.session_state.hema_points = [p for p in st.session_state.hema_points if not is_near(p,(x,y), r=circle_radius)]
             st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p,(x,y), r=circle_radius)]
         else:
             st.session_state.manual_points.append((x,y))
@@ -125,6 +143,16 @@ if uploaded_file:
         df["Y_display"] = pd.to_numeric(df["Y_display"], errors="coerce")
         df["X_original"] = (df["X_display"] / scale).round().astype("Int64")
         df["Y_original"] = (df["Y_display"] / scale).round().astype("Int64")
+        # Farbtyp hinzufügen
+        types = []
+        for p in all_points:
+            if p in st.session_state.aec_points:
+                types.append("AEC")
+            elif p in st.session_state.hema_points:
+                types.append("Hämatoxylin")
+            else:
+                types.append("manuell")
+        df["Type"] = types
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
     else:
