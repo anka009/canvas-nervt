@@ -9,8 +9,8 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
 
-# Erkennungsfunktion mit Maskenvorschau
-def detect_custom(image, hue, sat, val, min_area):
+# HSV-Erkennung mit Maskenvorschau
+def detect_hsv(image, hue, sat, val, min_area):
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     lower = np.array([hue - 10, sat, val])
     upper = np.array([hue + 10, 255, 255])
@@ -63,22 +63,22 @@ if uploaded_file:
     image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
 
     # Parameter-Tuner AEC
-    with st.expander("🔴 AEC-Parameter"):
-        aec_hue = st.slider("Hue", 0, 30, 15, key="aec_hue")
-        aec_sat = st.slider("Sättigung", 50, 255, 100, key="aec_sat")
-        aec_val = st.slider("Helligkeit", 50, 255, 100, key="aec_val")
-        aec_area = st.slider("Minimale Fläche", 10, 1000, 100, key="aec_area")
-        if st.button("🔍 AEC-Kerne erkennen", key="detect_aec"):
-            st.session_state.auto_points = detect_custom(image_disp, aec_hue, aec_sat, aec_val, aec_area)
+    with st.expander("🔴 AEC-Erkennung"):
+        aec_hue = st.slider("Hue (AEC)", 0, 30, 15, key="aec_hue")
+        aec_sat = st.slider("Sättigung (AEC)", 50, 255, 100, key="aec_sat")
+        aec_val = st.slider("Helligkeit (AEC)", 50, 255, 100, key="aec_val")
+        aec_area = st.slider("Minimale Fläche (AEC)", 10, 1000, 100, key="aec_area")
+        if st.button("🔍 AEC-Kerne erkennen", key="aec_button"):
+            st.session_state.auto_points = detect_hsv(image_disp, aec_hue, aec_sat, aec_val, aec_area)
 
     # Parameter-Tuner Hämalaun
-    with st.expander("🔵 Hämalaun-Parameter"):
-        haem_hue = st.slider("Hue", 100, 160, 130, key="haem_hue")
-        haem_sat = st.slider("Sättigung", 50, 255, 100, key="haem_sat")
-        haem_val = st.slider("Helligkeit", 50, 255, 100, key="haem_val")
-        haem_area = st.slider("Minimale Fläche", 10, 1000, 100, key="haem_area")
-        if st.button("🔍 Hämalaun-Kerne erkennen", key="detect_haem"):
-            st.session_state.auto_points = detect_custom(image_disp, haem_hue, haem_sat, haem_val, haem_area)
+    with st.expander("🔵 Hämalaun-Erkennung"):
+        haem_hue = st.slider("Hue (Hämalaun)", 100, 160, 130, key="haem_hue")
+        haem_sat = st.slider("Sättigung (Hämalaun)", 50, 255, 100, key="haem_sat")
+        haem_val = st.slider("Helligkeit (Hämalaun)", 50, 255, 100, key="haem_val")
+        haem_area = st.slider("Minimale Fläche (Hämalaun)", 10, 1000, 100, key="haem_area")
+        if st.button("🔍 Hämalaun-Kerne erkennen", key="haem_button"):
+            st.session_state.auto_points = detect_hsv(image_disp, haem_hue, haem_sat, haem_val, haem_area)
 
     # Anzeige der Punkte
     circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8, key="circle_radius")
