@@ -39,8 +39,8 @@ DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1400, step=50, key="disp
 
   
     # -------------------- Bild vorbereiten --------------------
-    image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
-    H_orig, W_orig = image_orig.shape[:2]
+        image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
+        H_orig, W_orig = image_orig.shape[:2]
 
     if use_full_width:
         image_disp = image_orig.copy()
