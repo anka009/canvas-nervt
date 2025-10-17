@@ -1,133 +1,99 @@
 import streamlit as st
 import cv2
 import numpy as np
-import pandas as pd
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
 
+# Hilfsfunktion
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
 
-st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
-st.title("🧬 Interaktiver Zellkern-Zähler")
+# Session State initialisieren
+for key in ["auto_points", "manual_points", "delete_mode", "last_file"]:
+    if key not in st.session_state:
+        st.session_state[key] = [] if "points" in key else False
 
-# -------------------- Session State --------------------
-if "auto_points" not in st.session_state:
-    st.session_state.auto_points = []
-if "manual_points" not in st.session_state:
-    st.session_state.manual_points = []
-if "delete_mode" not in st.session_state:
-    st.session_state.delete_mode = False
-if "last_file" not in st.session_state:
-    st.session_state.last_file = None
-
+# Bild hochladen
 uploaded_file = st.file_uploader("🔍 Bild hochladen", type=["jpg", "png", "tif", "tiff", "jpeg"])
-
 if uploaded_file:
-    # Reset bei neuem Bild
     if uploaded_file.name != st.session_state.last_file:
         st.session_state.auto_points = []
         st.session_state.manual_points = []
         st.session_state.delete_mode = False
         st.session_state.last_file = uploaded_file.name
 
-    # -------------------- Bildgröße einstellen --------------------
-    colW1, colW2 = st.columns([2,1])
-    with colW1:
-        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100, key="disp_width")
-    with colW2:
-        use_full_width = st.checkbox("🔲 Volle Breite nutzen", value=False)
-
-    # -------------------- Bild vorbereiten --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
     H_orig, W_orig = image_orig.shape[:2]
 
-    if use_full_width:
-        scale = st.session_state.get("scale", DISPLAY_WIDTH / W_orig)
-        display_size = (W_orig, H_orig)
-        image_disp = image_orig.copy()
-    else:
-        scale = DISPLAY_WIDTH / W_orig
-        display_size = (DISPLAY_WIDTH, int(H_orig * scale))
-        image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
+    # Anzeigegröße
+    colW1, colW2 = st.columns([2,1])
+    with colW1:
+        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100)
+    with colW2:
+        use_full_width = st.checkbox("🔲 Volle Breite nutzen", value=False)
 
-    gray_disp = cv2.cvtColor(image_disp, cv2.COLOR_RGB2GRAY)
+    scale = DISPLAY_WIDTH / W_orig if not use_full_width else 1
+    display_size = (DISPLAY_WIDTH, int(H_orig * scale)) if not use_full_width else (W_orig, H_orig)
+    image_disp = cv2.resize(image_orig, display_size, interpolation=cv2.INTER_AREA)
 
-    # -------------------- Regler --------------------
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        blur_kernel = st.slider("🔧 Blur", 1, 21, st.session_state.get("blur_kernel", 5), step=2, key="blur_kernel")
-        min_area = st.number_input("📏 Mindestfläche", 10, 2000, st.session_state.get("min_area", 100), key="min_area")
-    with col2:
-        thresh_val = st.slider("🎚️ Threshold (0 = Otsu)", 0, 255, st.session_state.get("thresh_val", 0), key="thresh_val")
-        alpha = st.slider("🌗 Alpha", 0.1, 3.0, st.session_state.get("alpha", 1.0), step=0.1, key="alpha")
-    with col3:
-        circle_radius = st.slider("⚪ Kreisradius", 3, 20, st.session_state.get("circle_radius", 8), key="circle_radius")
-        line_thickness = st.slider("📏 Linienstärke", 1, 5, st.session_state.get("line_thickness", 2), key="line_thickness")
+    # Parameter-Tuner AEC
+    with st.expander("🔴 AEC-Parameter"):
+        aec_hue = st.slider("Hue", 0, 30, 15)
+        aec_sat = st.slider("Sättigung", 50, 255, 100)
+        aec_val = st.slider("Helligkeit", 50, 255, 100)
+        aec_area = st.slider("Minimale Fläche", 10, 1000, 100)
+        if st.button("🔍 AEC-Kerne erkennen"):
+            st.session_state.auto_points = detect_custom(image_disp, aec_hue, aec_sat, aec_val, aec_area)
 
-    # -------------------- Auto-Erkennung läuft automatisch --------------------
-    proc = cv2.convertScaleAbs(gray_disp, alpha=alpha, beta=0)
-    if blur_kernel > 1:
-        proc = cv2.GaussianBlur(proc, (blur_kernel, blur_kernel), 0)
-    if thresh_val == 0:
-        otsu_thresh, _ = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    else:
-        otsu_thresh = thresh_val
-    _, mask = cv2.threshold(proc, otsu_thresh, 255, cv2.THRESH_BINARY)
-    if np.mean(proc[mask == 255]) > np.mean(proc[mask == 0]):
-        mask = cv2.bitwise_not(mask)
+    # Parameter-Tuner Hämalaun
+    with st.expander("🔵 Hämalaun-Parameter"):
+        haem_hue = st.slider("Hue", 100, 160, 130)
+        haem_sat = st.slider("Sättigung", 50, 255, 100)
+        haem_val = st.slider("Helligkeit", 50, 255, 100)
+        haem_area = st.slider("Minimale Fläche", 10, 1000, 100)
+        if st.button("🔍 Hämalaun-Kerne erkennen"):
+            st.session_state.auto_points = detect_custom(image_disp, haem_hue, haem_sat, haem_val, haem_area)
+
+    # Bildanzeige mit Punkten
+    marked_disp = image_disp.copy()
+    for (x,y) in st.session_state.auto_points:
+        cv2.circle(marked_disp, (x,y), 8, (255,0,0), 2)
+    for (x,y) in st.session_state.manual_points:
+        cv2.circle(marked_disp, (x,y), 8, (0,255,0), 2)
+
+    coords = streamlit_image_coordinates(Image.fromarray(marked_disp), key="clickable_image", width=None if use_full_width else DISPLAY_WIDTH)
+
+    # Klick-Logik
+    if coords is not None:
+        x, y = coords["x"], coords["y"]
+        if st.session_state.delete_mode:
+            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x,y), r=8)]
+            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=8)]
+        else:
+            st.session_state.manual_points.append((x,y))
+
+    # Steuerung
+    st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
+
+    # Punktanzahl
+    all_points = st.session_state.auto_points + st.session_state.manual_points
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
+
+# Erkennungsfunktion
+def detect_custom(image, hue, sat, val, min_area):
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    lower = np.array([hue - 10, sat, val])
+    upper = np.array([hue + 10, 255, 255])
+    mask = cv2.inRange(hsv, lower, upper)
     kernel = np.ones((3, 3), np.uint8)
     clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
     contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    detected = []
+    points = []
     for c in contours:
         if cv2.contourArea(c) >= min_area:
             M = cv2.moments(c)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
-                detected.append((cx, cy))
-
-    st.session_state.auto_points = detected
-
-    # -------------------- Ausgabe: Kerneanzahl über dem Bild --------------------
-    all_points = st.session_state.auto_points + st.session_state.manual_points
-    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
-
-    # -------------------- Bild mit Punkten --------------------
-    marked_disp = image_disp.copy()
-    for (x,y) in st.session_state.auto_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (255,0,0), line_thickness)   # rot = automatisch
-    for (x,y) in st.session_state.manual_points:
-        cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)   # grün = manuell
-
-    coords = streamlit_image_coordinates(
-        Image.fromarray(marked_disp),
-        key="clickable_image",
-        width=None if use_full_width else DISPLAY_WIDTH
-    )
-
-    # -------------------- Klick-Logik --------------------
-    if coords is not None:
-        x, y = coords["x"], coords["y"]
-        if st.session_state.delete_mode:
-            st.session_state.auto_points = [p for p in st.session_state.auto_points if not is_near(p, (x,y), r=circle_radius)]
-            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p, (x,y), r=circle_radius)]
-        else:
-            st.session_state.manual_points.append((x,y))
-
-    # -------------------- Steuerung --------------------
-    st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
-
-    # -------------------- CSV Export --------------------
-    df = pd.DataFrame(all_points, columns=["X_display", "Y_display"])
-    if not df.empty:
-        df["X_display"] = pd.to_numeric(df["X_display"], errors="coerce")
-        df["Y_display"] = pd.to_numeric(df["Y_display"], errors="coerce")
-        df["X_original"] = (df["X_display"] / scale).round().astype("Int64")
-        df["Y_original"] = (df["Y_display"] / scale).round().astype("Int64")
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
-    else:
-        st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
+                points.append((cx, cy))
+    return points
