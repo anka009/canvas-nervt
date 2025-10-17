@@ -30,8 +30,9 @@ keys_defaults = {
     "aec_points": [], "hema_points": [], "manual_points": [],
     "delete_mode": False, "last_file": None, "disp_width": 1400,
     "aec_hue_min1": 0, "aec_hue_max1": 10, "aec_hue_min2": 170, "aec_hue_max2": 180,
-    "aec_s_min":30, "aec_s_max":255, "aec_v_min":30, "aec_v_max":255,
-    "hema_hue_min":100, "hema_hue_max":140, "hema_s_min":50, "hema_s_max":255, "hema_v_min":50, "hema_v_max":255
+    "aec_s_min":50, "aec_s_max":255, "aec_v_min":50, "aec_v_max":200,
+    "hema_hue_min":100, "hema_hue_max":140, "hema_s_min":50, "hema_s_max":255, "hema_v_min":50, "hema_v_max":200,
+    "bg_points": []
 }
 for k,v in keys_defaults.items():
     if k not in st.session_state:
@@ -45,6 +46,7 @@ if uploaded_file:
         st.session_state.aec_points = []
         st.session_state.hema_points = []
         st.session_state.manual_points = []
+        st.session_state.bg_points = []
         st.session_state.delete_mode = False
         st.session_state.last_file = uploaded_file.name
         st.session_state.disp_width = 1400
@@ -54,39 +56,9 @@ if uploaded_file:
     H_orig, W_orig = image_orig.shape[:2]
 
     scale = st.session_state.disp_width / W_orig
-    image_disp = cv2.resize(image_orig, (st.session_state.disp_width, int(H_orig * scale)), interpolation=cv2.INTER_AREA)
+    image_disp = cv2.resize(image_orig, (st.session_state.disp_width, int(H_orig*scale)), interpolation=cv2.INTER_AREA)
 
     hsv = cv2.cvtColor(image_disp, cv2.COLOR_RGB2HSV)
-
-    # -------------------- Automatische AEC-Hue/S/V Schätzung --------------------
-    mask_aec_pixels = hsv[:,:,1] > 30
-    if np.any(mask_aec_pixels):
-        hue_peak = int(np.median(hsv[:,:,0][mask_aec_pixels]))
-        s_peak = int(np.median(hsv[:,:,1][mask_aec_pixels]))
-        v_peak = int(np.median(hsv[:,:,2][mask_aec_pixels]))
-    else:
-        hue_peak, s_peak, v_peak = 0,50,50
-    st.session_state.aec_hue_min1 = max(hue_peak-10,0)
-    st.session_state.aec_hue_max1 = min(hue_peak+10,180)
-    st.session_state.aec_s_min = max(s_peak-30,0)
-    st.session_state.aec_s_max = min(s_peak+30,255)
-    st.session_state.aec_v_min = max(v_peak-30,0)
-    st.session_state.aec_v_max = min(v_peak+30,255)
-
-    # -------------------- Automatische Hämatoxylin-Hue/S/V Schätzung --------------------
-    mask_hema_pixels = (hsv[:,:,0]>=90) & (hsv[:,:,0]<=140) & (hsv[:,:,1]>30)
-    if np.any(mask_hema_pixels):
-        hue_peak_hema = int(np.median(hsv[:,:,0][mask_hema_pixels]))
-        s_peak_hema = int(np.median(hsv[:,:,1][mask_hema_pixels]))
-        v_peak_hema = int(np.median(hsv[:,:,2][mask_hema_pixels]))
-    else:
-        hue_peak_hema, s_peak_hema, v_peak_hema = 110,50,50
-    st.session_state.hema_hue_min = max(hue_peak_hema-10,0)
-    st.session_state.hema_hue_max = min(hue_peak_hema+10,180)
-    st.session_state.hema_s_min = max(s_peak_hema-30,0)
-    st.session_state.hema_s_max = min(s_peak_hema+30,255)
-    st.session_state.hema_v_min = max(v_peak_hema-30,0)
-    st.session_state.hema_v_max = min(v_peak_hema+30,255)
 
     # -------------------- Slider --------------------
     col1, col2, col3 = st.columns(3)
@@ -94,69 +66,19 @@ if uploaded_file:
         blur_kernel = st.slider("🔧 Blur", 1, 21, 5, step=2)
         min_area = st.number_input("📏 Mindestfläche", 10, 2000, 100)
     with col2:
-        # AEC Slider
-        aec_hue_min1 = st.slider("AEC Hue min1", 0, 20, st.session_state.aec_hue_min1)
-        aec_hue_max1 = st.slider("AEC Hue max1", 0, 20, st.session_state.aec_hue_max1)
-        aec_hue_min2 = st.slider("AEC Hue min2", 170, 180, 170)
-        aec_hue_max2 = st.slider("AEC Hue max2", 170, 180, 180)
-        aec_s_min = st.slider("AEC Sättigung min", 0, 255, st.session_state.aec_s_min)
-        aec_s_max = st.slider("AEC Sättigung max", 0, 255, st.session_state.aec_s_max)
-        aec_v_min = st.slider("AEC Helligkeit min", 0, 255, st.session_state.aec_v_min)
-        aec_v_max = st.slider("AEC Helligkeit max", 0, 255, st.session_state.aec_v_max)
-
-        # Hämatoxylin Slider
-        hema_hue_min = st.slider("Hämatoxylin Hue min", 90, 140, st.session_state.hema_hue_min)
-        hema_hue_max = st.slider("Hämatoxylin Hue max", 90, 140, st.session_state.hema_hue_max)
-        hema_s_min = st.slider("Hämatoxylin Sättigung min", 0, 255, st.session_state.hema_s_min)
-        hema_s_max = st.slider("Hämatoxylin Sättigung max", 0, 255, st.session_state.hema_s_max)
-        hema_v_min = st.slider("Hämatoxylin Helligkeit min", 0, 255, st.session_state.hema_v_min)
-        hema_v_max = st.slider("Hämatoxylin Helligkeit max", 0, 255, st.session_state.hema_v_max)
         alpha = st.slider("🌗 Alpha", 0.1, 3.0, 1.0, step=0.1)
+    with col3:
+        circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
+        line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
 
-    circle_radius = st.slider("⚪ Kreisradius", 3, 20, 8)
-    line_thickness = st.slider("📏 Linienstärke", 1, 5, 2)
-
-    # -------------------- Auto-Erkennung --------------------
-    colA, colB = st.columns([1,1])
+    # -------------------- Checkbox-Modi --------------------
+    colA, colB, colC = st.columns(3)
     with colA:
-        if st.button("🤖 Auto-Erkennung starten"):
-            proc = cv2.convertScaleAbs(image_disp, alpha=alpha, beta=0)
-            if blur_kernel>1:
-                proc = cv2.GaussianBlur(proc,(blur_kernel,blur_kernel),0)
-            hsv_proc = cv2.cvtColor(proc, cv2.COLOR_RGB2HSV)
-
-            # AEC
-            lower1 = np.array([aec_hue_min1, aec_s_min, aec_v_min])
-            upper1 = np.array([aec_hue_max1, aec_s_max, aec_v_max])
-            lower2 = np.array([aec_hue_min2, aec_s_min, aec_v_min])
-            upper2 = np.array([aec_hue_max2, aec_s_max, aec_v_max])
-            mask_aec1 = cv2.inRange(hsv_proc, lower1, upper1)
-            mask_aec2 = cv2.inRange(hsv_proc, lower2, upper2)
-            mask_aec = cv2.bitwise_or(mask_aec1, mask_aec2)
-            kernel = np.ones((3,3), np.uint8)
-            mask_aec = cv2.morphologyEx(mask_aec, cv2.MORPH_OPEN, kernel, iterations=1)
-            st.session_state.aec_points = get_centers(mask_aec, min_area)
-
-            # Hämatoxylin
-            lower_hema = np.array([hema_hue_min, hema_s_min, hema_v_min])
-            upper_hema = np.array([hema_hue_max, hema_s_max, hema_v_max])
-            mask_hema = cv2.inRange(hsv_proc, lower_hema, upper_hema)
-            mask_hema = cv2.morphologyEx(mask_hema, cv2.MORPH_OPEN, kernel, iterations=1)
-            st.session_state.hema_points = get_centers(mask_hema, min_area)
-
-            st.success(f"✅ {len(st.session_state.aec_points)} AEC-Kerne, {len(st.session_state.hema_points)} Hämatoxylin-Kerne erkannt.")
-
+        st.session_state.delete_mode = st.checkbox("🗑️ Löschmodus aktivieren")
     with colB:
-        if st.button("🧹 Auto-Erkennung zurücksetzen"):
-            st.session_state.aec_points = []
-            st.session_state.hema_points = []
-            st.info("Automatische Punkte gelöscht.")
+        bg_mode = st.checkbox("🖌 Hintergrund markieren")
 
-    # -------------------- Gesamtanzahl --------------------
-    all_points = st.session_state.aec_points + st.session_state.hema_points + st.session_state.manual_points
-    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
-
-    # -------------------- Bild mit Punkten --------------------
+    # -------------------- Bild mit Klicks anzeigen --------------------
     marked_disp = image_disp.copy()
     # AEC-Kerne (rot)
     for (x,y) in st.session_state.aec_points:
@@ -167,16 +89,88 @@ if uploaded_file:
     # Manuelle Punkte (grün)
     for (x,y) in st.session_state.manual_points:
         cv2.circle(marked_disp, (x,y), circle_radius, (0,255,0), line_thickness)
+    # Hintergrundpunkte (gelb)
+    for (x,y) in st.session_state.bg_points:
+        cv2.circle(marked_disp, (x,y), circle_radius, (255,255,0), line_thickness)
 
-    coords = streamlit_image_coordinates(
-        Image.fromarray(marked_disp),
-        key="clickable_image",
-        width=st.session_state.disp_width
-    )
+    coords = streamlit_image_coordinates(Image.fromarray(marked_disp), key="clickable_image", width=st.session_state.disp_width)
 
     # -------------------- Klick-Logik --------------------
     if coords is not None:
         x, y = coords["x"], coords["y"]
-        if st.session_state.delete_mode:
+        if bg_mode:
+            st.session_state.bg_points.append((x,y))
+        elif st.session_state.delete_mode:
             st.session_state.aec_points = [p for p in st.session_state.aec_points if not is_near(p,(x,y),r=circle_radius)]
-            st.session_state.hema_points
+            st.session_state.hema_points = [p for p in st.session_state.hema_points if not is_near(p,(x,y),r=circle_radius)]
+            st.session_state.manual_points = [p for p in st.session_state.manual_points if not is_near(p,(x,y),r=circle_radius)]
+        else:
+            st.session_state.manual_points.append((x,y))
+
+    # -------------------- Auto-Erkennung --------------------
+    if st.button("🤖 Auto-Erkennung starten"):
+        proc = cv2.convertScaleAbs(image_disp, alpha=alpha, beta=0)
+        if blur_kernel>1:
+            proc = cv2.GaussianBlur(proc,(blur_kernel,blur_kernel),0)
+        hsv_proc = cv2.cvtColor(proc, cv2.COLOR_RGB2HSV)
+
+        # -------------------- Hintergrundmaske --------------------
+        if st.session_state.bg_points:
+            mask_bg = np.zeros(image_disp.shape[:2], dtype=np.uint8)
+            for (x,y) in st.session_state.bg_points:
+                cv2.circle(mask_bg,(x,y), radius=10, color=255, thickness=-1)
+            roi_pixels = cv2.bitwise_and(hsv_proc, hsv_proc, mask=mask_bg)
+            bg_h = int(np.median(roi_pixels[:,:,0][mask_bg==255]))
+            bg_s = int(np.median(roi_pixels[:,:,1][mask_bg==255]))
+            bg_v = int(np.median(roi_pixels[:,:,2][mask_bg==255]))
+            diff_h = cv2.absdiff(hsv_proc[:,:,0], bg_h)
+            diff_s = cv2.absdiff(hsv_proc[:,:,1], bg_s)
+            diff_v = cv2.absdiff(hsv_proc[:,:,2], bg_v)
+            mask_fg = ((diff_h>10) | (diff_s>20) | (diff_v>20)).astype(np.uint8)*255
+        else:
+            mask_fg = np.ones(image_disp.shape[:2], dtype=np.uint8)*255
+
+        kernel = np.ones((3,3),np.uint8)
+
+        # -------------------- AEC --------------------
+        lower1 = np.array([st.session_state.aec_hue_min1, st.session_state.aec_s_min, st.session_state.aec_v_min])
+        upper1 = np.array([st.session_state.aec_hue_max1, st.session_state.aec_s_max, st.session_state.aec_v_max])
+        lower2 = np.array([st.session_state.aec_hue_min2, st.session_state.aec_s_min, st.session_state.aec_v_min])
+        upper2 = np.array([st.session_state.aec_hue_max2, st.session_state.aec_s_max, st.session_state.aec_v_max])
+        mask_aec1 = cv2.inRange(hsv_proc, lower1, upper1)
+        mask_aec2 = cv2.inRange(hsv_proc, lower2, upper2)
+        mask_aec = cv2.bitwise_or(mask_aec1, mask_aec2)
+        mask_aec = cv2.bitwise_and(mask_aec, mask_aec, mask=mask_fg)
+        mask_aec = cv2.morphologyEx(mask_aec, cv2.MORPH_OPEN, kernel, iterations=1)
+        st.session_state.aec_points = get_centers(mask_aec, min_area)
+
+        # -------------------- Hämatoxylin --------------------
+        lower_hema = np.array([st.session_state.hema_hue_min, st.session_state.hema_s_min, st.session_state.hema_v_min])
+        upper_hema = np.array([st.session_state.hema_hue_max, st.session_state.hema_s_max, st.session_state.hema_v_max])
+        mask_hema = cv2.inRange(hsv_proc, lower_hema, upper_hema)
+        mask_hema = cv2.bitwise_and(mask_hema, mask_hema, mask=mask_fg)
+        mask_hema = cv2.morphologyEx(mask_hema, cv2.MORPH_OPEN, kernel, iterations=1)
+        st.session_state.hema_points = get_centers(mask_hema, min_area)
+
+        st.success(f"✅ {len(st.session_state.aec_points)} AEC-Kerne, {len(st.session_state.hema_points)} Hämatoxylin-Kerne erkannt.")
+
+    # -------------------- Reset Auto-Erkennung --------------------
+    if st.button("🧹 Auto-Erkennung zurücksetzen"):
+        st.session_state.aec_points = []
+        st.session_state.hema_points = []
+        st.info("Automatische Punkte gelöscht.")
+
+    # -------------------- Gesamtanzahl --------------------
+    all_points = st.session_state.aec_points + st.session_state.hema_points + st.session_state.manual_points
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
+
+    # -------------------- CSV Export --------------------
+    df = pd.DataFrame(all_points, columns=["X_display","Y_display"])
+    if not df.empty:
+        df["X_original"] = (df["X_display"]/scale).round().astype("Int64")
+        df["Y_original"] = (df["Y_display"]/scale).round().astype("Int64")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
+    else:
+        st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
+
