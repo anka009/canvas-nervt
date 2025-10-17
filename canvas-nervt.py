@@ -33,18 +33,11 @@ if uploaded_file:
         st.session_state.full_screen = False
         st.session_state.disp_width = 1400
 
-    # -------------------- Bildgröße einstellen: Slider + Button --------------------
-    colW1, colW2 = st.columns([2,1])
-    with colW1:
-        DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, st.session_state.disp_width, step=50, key="disp_width_slider")
-        st.session_state.disp_width = DISPLAY_WIDTH
-    with colW2:
-        if st.button("🖥️ Maximale Monitorbreite"):
-            st.session_state.disp_width = 2000  # sehr groß, passt automatisch auf Spaltenbreite
-            DISPLAY_WIDTH = st.session_state.disp_width
+  
+    # Slider für Bildbreite
+DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 2000, 1400, step=50, key="disp_width")
 
-    use_full_width = True if DISPLAY_WIDTH >= 2000 else False  # für Image-Anzeige
-
+  
     # -------------------- Bild vorbereiten --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
     H_orig, W_orig = image_orig.shape[:2]
