@@ -9,6 +9,27 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 def is_near(p1, p2, r=10):
     return np.linalg.norm(np.array(p1) - np.array(p2)) < r
 
+# Erkennungsfunktion mit Maskenvorschau
+def detect_custom(image, hue, sat, val, min_area):
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    lower = np.array([hue - 10, sat, val])
+    upper = np.array([hue + 10, 255, 255])
+    mask = cv2.inRange(hsv, lower, upper)
+    st.image(mask, caption="🧪 Vorschau der Farbmaske", use_column_width=True)
+
+    kernel = np.ones((3, 3), np.uint8)
+    clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
+    contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    points = []
+    for c in contours:
+        if cv2.contourArea(c) >= min_area:
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                points.append((cx, cy))
+    return points
+
 # Streamlit Setup
 st.set_page_config(page_title="Interaktiver Zellkern-Zähler", layout="wide")
 st.title("🧬 Interaktiver Zellkern-Zähler")
@@ -96,24 +117,3 @@ if uploaded_file:
         st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
     else:
         st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
-
-# Erkennungsfunktion mit Maskenvorschau
-def detect_custom(image, hue, sat, val, min_area):
-    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-    lower = np.array([hue - 10, sat, val])
-    upper = np.array([hue + 10, 255, 255])
-    mask = cv2.inRange(hsv, lower, upper)
-    st.image(mask, caption="🧪 Vorschau der Farbmaske", use_column_width=True)
-
-    kernel = np.ones((3, 3), np.uint8)
-    clean = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
-    contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    points = []
-    for c in contours:
-        if cv2.contourArea(c) >= min_area:
-            M = cv2.moments(c)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                points.append((cx, cy))
-    return points
