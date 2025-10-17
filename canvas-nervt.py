@@ -179,4 +179,24 @@ if uploaded_file:
         mask_hema = cv2.morphologyEx(mask_hema, cv2.MORPH_OPEN, kernel, iterations=1)
         st.session_state.hema_points = get_centers(mask_hema, min_area)
 
-        st.success(f"✅ {len(st.session_state.a
+        st.success(f"✅ {len(st.session_state.aec_points)} AEC-Kerne, {len(st.session_state.hema_points)} Hämatoxylin-Kerne erkannt.")
+
+    # -------------------- Reset Auto-Erkennung --------------------
+    if st.button("🧹 Auto-Erkennung zurücksetzen"):
+        st.session_state.aec_points = []
+        st.session_state.hema_points = []
+        st.info("Automatische Punkte gelöscht.")
+
+    # -------------------- Gesamtanzahl --------------------
+    all_points = st.session_state.aec_points + st.session_state.hema_points + st.session_state.manual_points
+    st.markdown(f"### 🔢 Gesamtanzahl Kerne: {len(all_points)}")
+
+    # -------------------- CSV Export --------------------
+    df = pd.DataFrame(all_points, columns=["X_display","Y_display"])
+    if not df.empty:
+        df["X_original"] = (df["X_display"]/scale).round().astype("Int64")
+        df["Y_original"] = (df["Y_display"]/scale).round().astype("Int64")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("📥 CSV exportieren", data=csv, file_name="zellkerne.csv", mime="text/csv")
+    else:
+        st.info("Keine Punkte vorhanden – CSV-Export nicht möglich.")
