@@ -36,14 +36,14 @@ if uploaded_file:
     with colW1:
         DISPLAY_WIDTH = st.slider("📐 Bildbreite", 400, 1400, 1400, step=100, key="disp_width")
     with colW2:
-    # Toggle-Button für volle Bildschirmbreite
-    if "use_full_width" not in st.session_state:
-        st.session_state.use_full_width = False
+        # Toggle-Button für volle Bildschirmbreite
+        if "use_full_width" not in st.session_state:
+            st.session_state.use_full_width = False
 
-    if st.button("🔲 Volle Bildschirmbreite"):
-        st.session_state.use_full_width = not st.session_state.use_full_width
+        if st.button("🔲 Volle Bildschirmbreite"):
+            st.session_state.use_full_width = not st.session_state.use_full_width
 
-    use_full_width = st.session_state.use_full_width
+        use_full_width = st.session_state.use_full_width
 
     # -------------------- Bild vorbereiten --------------------
     image_orig = np.array(Image.open(uploaded_file).convert("RGB"))
